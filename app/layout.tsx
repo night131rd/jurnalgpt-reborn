@@ -14,11 +14,53 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JurnalGPT – AI untuk Jurnal Ilmiah",
-  description: "Platform AI untuk mencari, merangkum, dan memahami jurnal ilmiah",
+  title: "JurnalGPT – AI pencari jurnal",
+  description: "Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
+  keywords: ["JurnalGPT", "Jurnal AI", "AI Cari Jurnal", "AI Pencari Jurnal", "AI Pencari Jurnal Gratis", "Penelitian Ilmiah", "Laprak", "Skripsi"],
+  metadataBase: new URL('https://jurnalgpt.app'),
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: "JurnalGPT – AI untuk Jurnal Ilmiah",
+    description: "Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
+    url: 'https://jurnalgpt.app',
+    siteName: 'JurnalGPT',
+    images: [
+      {
+        url: '/1200.png', // Assuming we have or will have this
+        width: 1200,
+        height: 630,
+        alt: 'JurnalGPT Preview',
+      },
+    ],
+    locale: 'id_ID',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "JurnalGPT – AI untuk Jurnal Ilmiah",
+    description: "Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
+    images: ['/og-image.png'],
+  },
   icons: {
-    icon: "/favicon.svg",
-    apple: "/main_logo.svg",
+    icon: "/32.png",
+    apple: "/32.png",
+  },
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'JurnalGPT',
+  description: 'Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.',
+  url: 'https://jurnalgpt.app',
+  applicationCategory: 'EducationalApplication',
+  operatingSystem: 'All',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'IDR',
   },
 };
 
@@ -37,6 +79,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <Navbar />
         <LayoutWrapper>{children}</LayoutWrapper>
       </body>

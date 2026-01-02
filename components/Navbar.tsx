@@ -104,9 +104,9 @@ export default function Navbar() {
                 <div className="flex items-center gap-8">
                     {/* Logo and Brand */}
                     <Link href="/" className="flex items-center gap-2">
-                        <div className="relative h-10 w-10">
+                        <div className="relative h-15 w-15">
                             <Image
-                                src="/main_logo.png"
+                                src="/64.png"
                                 alt="JurnalGPT Logo"
                                 fill
                                 className="object-contain"
