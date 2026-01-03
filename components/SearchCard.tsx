@@ -283,7 +283,7 @@ export default function SearchCard({
                                     ? `Sisa kuota pencarian kamu hari ini: ${quota}`
                                     : isGuest
                                         ? "Kuota tamu kamu sudah habis. Silakan masuk untuk lanjut!"
-                                        : "Kuota harian kamu sudah habis. Tunggu besok atau upgrade premium!"
+                                        : "Kuota  kamu sudah habis. Upgrade premium untuk terus menggunakan dan mendukung kami!"
                                 }
                             </span>
                             {(quota <= 2 || isGuest) && (
