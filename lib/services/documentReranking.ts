@@ -37,33 +37,45 @@ export async function rerankDocuments(
             }
 
             try {
-                const apiKey = process.env.LANGSEARCH_API_KEY;
-                if (!apiKey) {
-                    console.warn('LANGSEARCH_API_KEY not found. Skipping reranking.');
+                // API Key Rotation Logic
+                const apiKeysStr = process.env.LANGSEARCH_API_KEYS || process.env.LANGSEARCH_API_KEY;
+                if (!apiKeysStr) {
+                    console.warn('No LANGSEARCH_API_KEYS found. Skipping reranking.');
                     span.setAttribute('output.reranked_count', documents.slice(0, topN).length);
                     span.setAttribute('output.skipped', true);
                     return documents.slice(0, topN);
                 }
 
+                const apiKeys = apiKeysStr.split(',').map(k => k.trim()).filter(Boolean);
+                // Randomly select an API key to distribute load
+                const selectedApiKey = apiKeys[Math.floor(Math.random() * apiKeys.length)];
+
                 // Prepare documents for API
-                // Truncate abstract to avoid 504 Timeouts / Payload too large
+                // Truncate abstract further to avoid 504 Timeouts
                 const docTexts = documents.map(doc =>
                     `Title: ${doc.title}\nAbstract: ${doc.abstract ? doc.abstract.substring(0, 1000) : ''}`
                 );
+
+                // Add Timeout (12 seconds)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
 
                 const response = await fetch(LANGSEARCH_API, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                        'Authorization': `Bearer ${selectedApiKey}`
                     },
                     body: JSON.stringify({
                         model: 'langsearch-reranker-v1',
                         query: query,
                         documents: docTexts,
                         top_n: topN
-                    })
+                    }),
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
 
                 if (!response.ok) {
                     throw new Error(`Rerank API error: ${response.status} ${response.statusText}`);
@@ -76,17 +88,14 @@ export async function rerankDocuments(
                 }
 
                 // Map results back to original documents
-                // The API returns indices sorted by relevance score
                 const rerankedDocs = data.results.map(result => {
-                    // We can check score threshold here if needed
                     return documents[result.index];
                 });
 
                 // Set output attributes
                 span.setAttribute('output.reranked_count', rerankedDocs.length);
-
-                // Log FULL output documents for evaluation (smart tracing)
                 span.setAttribute('output.documents', tracePayload(rerankedDocs));
+                span.setAttribute('output.api_key_used', `${selectedApiKey.substring(0, 4)}...`);
 
                 // Record relevance scores
                 const relevanceScores = data.results.map(r => r.relevance_score);
@@ -94,13 +103,16 @@ export async function rerankDocuments(
 
                 return rerankedDocs;
 
-            } catch (error) {
-                console.warn('Semantic reranking failed (using fallback):', error);
+            } catch (error: any) {
+                const isTimeout = error.name === 'AbortError';
+                console.warn(`Semantic reranking failed ${isTimeout ? '(timed out)' : ''}:`, error.message || error);
                 span.recordException(error as Error);
+
                 // Fallback: return original list truncated
                 const fallbackDocs = documents.slice(0, topN);
                 span.setAttribute('output.reranked_count', fallbackDocs.length);
                 span.setAttribute('output.fallback', true);
+                span.setAttribute('output.fallback_reason', isTimeout ? 'timeout' : 'error');
                 return fallbackDocs;
             }
         } finally {
