@@ -154,7 +154,7 @@ export default function SearchCard({
                                 // Delay to allow suggestion click
                                 setTimeout(() => setIsFocused(false), 200);
                             }}
-                            placeholder="Apa yang ingin kamu cari hari ini?"
+                            placeholder="Apa yang ingin kamu cari  ini?"
                             className="w-full resize-none border-0 bg-transparent p-0 text-lg text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0 min-h-[44px]"
                             rows={1}
                         />
@@ -280,7 +280,7 @@ export default function SearchCard({
                             )} />
                             <span className="text-xs font-medium text-zinc-500">
                                 {quota > 0
-                                    ? `Sisa kuota pencarian kamu hari ini: ${quota}`
+                                    ? `Sisa kuota pencarian kamu ini: ${quota}`
                                     : isGuest
                                         ? "Kuota tamu kamu sudah habis. Silakan masuk untuk lanjut!"
                                         : "Kuota  kamu sudah habis. Upgrade premium untuk terus menggunakan dan mendukung kami!"

@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
                 if (profile.role !== 'premium') {
                     if (profile.sisa_quota <= 0) {
                         return NextResponse.json(
-                            { error: 'Kuota harian kamu sudah habis. Tunggu besok atau upgrade premium!' },
+                            { error: 'Kuota kamu sudah habis. Tunggu besok atau upgrade premium!' },
                             { status: 403 }
                         );
                     }
