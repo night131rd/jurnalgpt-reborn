@@ -14,7 +14,7 @@ export async function searchJournals(
     scope: 'all' | 'national' | 'international' = 'all',
     isPremium: boolean = false
 ): Promise<{ journals: Journal[]; stream: AsyncGenerator<string, void, unknown> }> {
-    const rerankCount = isPremium ? 50 : 16;
+    const rerankCount = isPremium ? 16 : 8;
     const resultCount = isPremium ? 8 : 4;
 
     return tracer.startActiveSpan('JurnalGPT Search Pipeline', async (span: Span) => {
@@ -60,7 +60,7 @@ export async function searchJournals(
             console.log(`  🔀 Merged: ${mergedJournals.length} unique journals`);
 
             // STEP 4: Semantic Reranking
-            console.log(`  📊 Reranking ${mergedJournals.length} documents...`);
+            console.log(`  📊 Reranking ${mergedJournals.slice(0, rerankCount).length} documents...`);
             // We send up to rerankCount documents for reranking to get the absolute best context
             const rerankedJournals = await rerankDocuments(query, mergedJournals.slice(0, rerankCount), resultCount);
             console.log(`  ✅ Reranked top ${rerankedJournals.length} documents`);

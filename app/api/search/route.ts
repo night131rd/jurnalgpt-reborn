@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { searchJournals } from '@/lib/services/searchService';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import crypto from 'crypto';
 
 export const runtime = "nodejs";
@@ -24,7 +25,40 @@ export async function POST(request: NextRequest) {
         const authHeader = request.headers.get('Authorization');
         const token = authHeader?.startsWith('Bearer ') ? authHeader.split('Bearer ')[1] : "";
 
-        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        let user = null;
+        if (token) {
+            const { data: { user: authUser } } = await supabaseAdmin.auth.getUser(token);
+            user = authUser;
+        } else {
+            // Try cookie-based auth via @supabase/ssr
+            const supabase = createServerClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                {
+                    cookies: {
+                        getAll() {
+                            return cookieStore.getAll()
+                        },
+                        setAll(cookiesToSet) {
+                            try {
+                                cookiesToSet.forEach(({ name, value, options }) =>
+                                    cookieStore.set(name, value, options)
+                                )
+                            } catch {
+                                // Ignore set failures in route handler
+                            }
+                        },
+                    },
+                }
+            );
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            user = authUser;
+        }
+
+        // Logged-in User Information
+        let userStatus = 'guest';
+        let isPremium = false;
+        let loggedUserId = null;
 
         if (!user) {
             // Guest Quota Implementation
@@ -50,7 +84,7 @@ export async function POST(request: NextRequest) {
 
             if (fetchError) console.error('Supabase fetch error:', fetchError);
 
-            // Fallback to IP if guest_id not found (prevents simple cookie bypass)
+            // Fallback to IP if guest_id not found
             if (!usage) {
                 const { data: usageByIp, error: ipFetchError } = await supabaseAdmin
                     .from('guest_search_usage')
@@ -65,8 +99,6 @@ export async function POST(request: NextRequest) {
             }
 
             const currentCount = usage?.search_count || 0;
-            console.log(`Guest Trace - ID: ${guestId}, IP: ${ipAddress}, Count: ${currentCount}`);
-
             if (currentCount >= 3) {
                 cookieStore.set('guest_quota', '0', { maxAge: 60 * 60 * 24 * 365, path: '/' });
                 return NextResponse.json(
@@ -78,61 +110,66 @@ export async function POST(request: NextRequest) {
             // Increment usage
             const newCount = currentCount + 1;
             if (!usage) {
-                const { error: insertError } = await supabaseAdmin.from('guest_search_usage').insert({
+                await supabaseAdmin.from('guest_search_usage').insert({
                     guest_id: guestId,
                     ip_address: ipAddress,
                     search_count: newCount
                 });
-                if (insertError) console.error('Supabase insert error:', insertError);
             } else {
-                const { error: updateError } = await supabaseAdmin.from('guest_search_usage')
+                await supabaseAdmin.from('guest_search_usage')
                     .update({
                         search_count: newCount,
                         ip_address: ipAddress,
-                        guest_id: guestId // sync guest_id
+                        guest_id: guestId
                     })
                     .eq('id', usage.id);
-                if (updateError) console.error('Supabase update error:', updateError);
             }
 
-            // Sync the legacy guest_quota cookie for the UI
             cookieStore.set('guest_quota', (3 - newCount).toString(), {
                 maxAge: 60 * 60 * 24 * 365,
                 path: '/'
             });
         } else {
-            // Logged-in User Quota
+            // Logged-in User Information
+            loggedUserId = user.id;
             const { data: profile } = await supabaseAdmin
                 .from('profiles')
                 .select('role, sisa_quota')
                 .eq('id', user.id)
                 .single();
 
-            if (profile && profile.role !== 'premium') {
-                if (profile.sisa_quota <= 0) {
-                    return NextResponse.json(
-                        { error: 'Kuota harian kamu sudah habis. Tunggu besok atau upgrade premium!' },
-                        { status: 403 }
-                    );
-                }
+            if (profile) {
+                userStatus = profile.role || 'free';
+                isPremium = profile.role === 'premium';
 
-                // Decrement quota
-                await supabaseAdmin
-                    .from('profiles')
-                    .update({ sisa_quota: profile.sisa_quota - 1 })
-                    .eq('id', user.id);
+                if (profile.role !== 'premium') {
+                    if (profile.sisa_quota <= 0) {
+                        return NextResponse.json(
+                            { error: 'Kuota harian kamu sudah habis. Tunggu besok atau upgrade premium!' },
+                            { status: 403 }
+                        );
+                    }
+
+                    // Decrement quota
+                    await supabaseAdmin
+                        .from('profiles')
+                        .update({ sisa_quota: profile.sisa_quota - 1 })
+                        .eq('id', user.id);
+                }
             }
         }
 
-        // Determine premium status for search parameters
-        let isPremium = false;
-        if (user) {
-            const { data: profile } = await supabaseAdmin
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single();
-            isPremium = profile?.role === 'premium';
+        // 3. Log Search Query
+        try {
+            await supabaseAdmin.from('search_logs').insert({
+                query: query.trim(),
+                year: `${minYear || '2020'}-${maxYear || '2025'}`,
+                status: userStatus,
+                user_id: loggedUserId
+            });
+        } catch (logError) {
+            console.error('Failed to log search:', logError);
+            // Non-blocking: continue search even if logging fails
         }
 
         // Execute search

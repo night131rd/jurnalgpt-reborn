@@ -19,7 +19,7 @@ interface RerankResponse {
 export async function rerankDocuments(
     query: string,
     documents: Journal[],
-    topN: number = 10
+    topN: number
 ): Promise<Journal[]> {
     return tracer.startActiveSpan('Document Reranking', async (span: Span) => {
         span.setAttribute('openinference.span.kind', 'RERANKER');
