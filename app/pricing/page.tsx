@@ -13,7 +13,7 @@ export default function PricingPage() {
     const router = useRouter();
 
     const handleSubscribe = async (plan: string) => {
-        const amount = plan === 'weekly' ? 10000 : 30000;
+        const amount = plan === 'weekly' ? 3000 : 10000;
 
         // Check if user is logged in
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -119,12 +119,12 @@ export default function PricingPage() {
                                 POPULAR
                             </div>
                         </div>
-                        <p className="text-sm text-zinc-400 mt-2 mb-4"> Dengan Rp 1.000 per hari, kamu bukan cuma dapat semua fitur premium, tapi juga ikut mendukung keberlanjutan JurnalGPT agar tetap bisa diakses gratis oleh teman-teman mahasiswa lainnya.</p>
+                        <p className="text-sm text-zinc-400 mt-2 mb-4"> Kurang dari 500 Rupiah per hari, kamu bukan cuma dapat semua fitur premium, tapi juga ikut mendukung keberlanjutan JurnalGPT agar tetap bisa diakses gratis oleh teman-teman mahasiswa lainnya.</p>
 
                         <div className="mb-6">
-                            <span className="text-4xl font-bold text-white">Rp 30.000</span>
+                            <span className="text-4xl font-bold text-white">Rp 10.000</span>
                             <span className="text-zinc-400"> / 30 hari</span>
-                            <div className="mt-1 text-sm font-medium text-blue-400">Hanya Rp 1.000 / hari</div>
+                            <div className="mt-1 text-sm font-medium text-blue-400">Hanya Rp 333 / hari</div>
                         </div>
 
                         <button
@@ -170,10 +170,10 @@ export default function PricingPage() {
                     >
                         <div className="mb-4">
                             <h3 className="text-xl font-bold text-zinc-900">Weekly</h3>
-                            <p className="text-sm text-zinc-500 mt-2"> Bayar semurah satu kali ngopi, tapi dampaknya besar, kamu bantu menjaga agar JurnalGPT terus berkembang untuk komunitas akademik Indonesia. </p>
+                            <p className="text-sm text-zinc-500 mt-2"> Bayar semurah, lebih murah  dari segelas kopi, tapi dampaknya besar, kamu bantu menjaga agar JurnalGPT terus berkembang untuk komunitas akademik Indonesia. </p>
                         </div>
                         <div className="mb-6">
-                            <span className="text-4xl font-bold text-zinc-900">Rp 10.000</span>
+                            <span className="text-4xl font-bold text-zinc-900">Rp 3.000</span>
                             <span className="text-zinc-500"> / 7 hari</span>
                         </div>
 

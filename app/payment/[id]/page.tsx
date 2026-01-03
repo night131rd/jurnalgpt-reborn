@@ -14,7 +14,7 @@ function PaymentContent({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
     const intentId = resolvedParams.id;
     const plan = searchParams.get('plan') || 'monthly';
-    const [expectedAmount, setExpectedAmount] = useState<number>(plan === 'weekly' ? 10000 : 30000);
+    const [expectedAmount, setExpectedAmount] = useState<number>(plan === 'weekly' ? 3000 : 10000);
 
     const [paidAmount, setPaidAmount] = useState('');
     const [file, setFile] = useState<File | null>(null);
