@@ -16,6 +16,7 @@ interface SearchCardProps {
     initialMaxYear?: string;
     initialScope?: 'all' | 'national' | 'international';
     refreshTrigger?: number;
+    isLoading?: boolean;
 }
 
 export default function SearchCard({
@@ -24,7 +25,8 @@ export default function SearchCard({
     initialMinYear = "2020",
     initialMaxYear = "2025",
     initialScope = 'all',
-    refreshTrigger = 0
+    refreshTrigger = 0,
+    isLoading = false
 }: SearchCardProps) {
     const [query, setQuery] = useState(initialQuery);
     const [minYear, setMinYear] = useState(initialMinYear);
@@ -101,7 +103,7 @@ export default function SearchCard({
             } else {
                 setSuggestions([]);
             }
-        }, 300); // 300ms debounce
+        }, 800); // 800ms debounce
 
         return () => clearTimeout(timer);
     }, [query]);
@@ -116,7 +118,7 @@ export default function SearchCard({
 
     const handleSearch = (e?: React.FormEvent) => {
         e?.preventDefault();
-        if (query.trim()) {
+        if (query.trim() && !isLoading) {
             onSearch(query, minYear, maxYear, scope);
             setShowSuggestions(false);
         }
@@ -154,8 +156,12 @@ export default function SearchCard({
                                 // Delay to allow suggestion click
                                 setTimeout(() => setIsFocused(false), 200);
                             }}
-                            placeholder="Apa yang ingin kamu cari  ini?"
-                            className="w-full resize-none border-0 bg-transparent p-0 text-lg text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0 min-h-[44px]"
+                            disabled={isLoading}
+                            placeholder={isLoading ? "Sedang mencari..." : "Apa yang ingin kamu cari hari ini?"}
+                            className={cn(
+                                "w-full resize-none border-0 bg-transparent p-0 text-lg text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0 min-h-[44px]",
+                                isLoading && "opacity-50 cursor-not-allowed"
+                            )}
                             rows={1}
                         />
                     </div>
@@ -227,11 +233,20 @@ export default function SearchCard({
                                 type="submit"
                                 className={cn(
                                     "flex h-9 w-9 items-center justify-center rounded-xl transition-all active:scale-95",
-                                    query.trim() && (quota === null || quota > 0) ? "bg-blue-600 text-white shadow-md hover:bg-blue-700" : "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+                                    query.trim() && (quota === null || quota > 0) && !isLoading ? "bg-blue-600 text-white shadow-md hover:bg-blue-700" : "bg-zinc-100 text-zinc-400 cursor-not-allowed"
                                 )}
-                                disabled={!query.trim() || (quota !== null && quota <= 0)}
+                                disabled={!query.trim() || (quota !== null && quota <= 0) || isLoading}
                             >
-                                <ArrowRight className="h-5 w-5" />
+                                {isLoading ? (
+                                    <motion.div
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                    >
+                                        <Zap className="h-4 w-4 text-blue-400" />
+                                    </motion.div>
+                                ) : (
+                                    <ArrowRight className="h-5 w-5" />
+                                )}
                             </button>
                         </div>
                     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import SearchCard from "@/components/SearchCard";
@@ -10,7 +11,10 @@ import { cn } from "@/lib/utils";
 export default function Home() {
   const router = useRouter();
 
+  const [isSearching, setIsSearching] = useState(false);
+
   const handleSearch = (query: string, minYear: string, maxYear: string, scope: 'all' | 'national' | 'international') => {
+    setIsSearching(true);
     const params = new URLSearchParams({
       q: query,
       minYear,
@@ -78,9 +82,8 @@ export default function Home() {
             </motion.div>
           </div>
 
-          {/* Search Card */}
           <div className="mt-12 flex justify-center">
-            <SearchCard onSearch={handleSearch} />
+            <SearchCard onSearch={handleSearch} isLoading={isSearching} />
           </div>
         </div>
       </section>

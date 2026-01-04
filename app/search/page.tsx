@@ -159,6 +159,7 @@ function SearchContent() {
                                 initialMaxYear={initialMaxYear}
                                 initialScope={initialScope}
                                 refreshTrigger={refreshTrigger}
+                                isLoading={isLoading}
                             />
                         </motion.div>
                     </motion.div>

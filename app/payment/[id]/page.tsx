@@ -23,6 +23,7 @@ function PaymentContent({ params }: { params: Promise<{ id: string }> }) {
     const [isConfirmed, setIsConfirmed] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
 
     useEffect(() => {
         async function fetchData() {
@@ -43,6 +44,7 @@ function PaymentContent({ params }: { params: Promise<{ id: string }> }) {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 setUserEmail(user.email ?? null);
+                setUserId(user.id);
             }
         }
         fetchData();
@@ -60,7 +62,7 @@ function PaymentContent({ params }: { params: Promise<{ id: string }> }) {
         try {
             // 1. Upload file to Supabase Storage
             const fileExt = file.name.split('.').pop();
-            const fileName = `${intentId}-${Math.random()}.${fileExt}`;
+            const fileName = `${userId || 'anon'}-${Date.now()}.${fileExt}`;
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('payment_proofs')
                 .upload(fileName, file);

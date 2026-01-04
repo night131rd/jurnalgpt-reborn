@@ -17,6 +17,10 @@ export async function searchSemanticScholar(
             span.setAttribute('input.query', query);
             span.setAttribute('input.year_range', `${minYear}-${maxYear}`);
 
+            const fetchWithTimeout = async (url: string, options: RequestInit, timeout: number = 5000) => {
+                return fetch(url, { ...options, signal: AbortSignal.timeout(timeout) });
+            };
+
             try {
                 const params = new URLSearchParams({
                     query: query,
@@ -30,17 +34,31 @@ export async function searchSemanticScholar(
                     'User-Agent': 'JurnalGPT/1.0 (mailto:public@jurnalgpt.com)'
                 };
 
-                const response = await fetch(`${S2_API}?${params}`, { headers });
+                let response;
+                let retries = 1;
 
+                while (retries >= 0) {
+                    try {
+                        response = await fetchWithTimeout(`${S2_API}?${params}`, { headers });
+                        break;
+                    } catch (e: any) {
+                        if ((e.name === 'TimeoutError' || e.code === 'ETIMEDOUT') && retries > 0) {
+                            console.warn(`⚠️ Semantic Scholar timeout, retrying... (${retries} left)`);
+                            retries--;
+                            continue;
+                        }
+                        throw e;
+                    }
+                }
 
-                if (!response.ok) {
-                    if (response.status === 429) {
+                if (!response || !response.ok) {
+                    if (response?.status === 429) {
                         console.warn('⚠️ Semantic Scholar rate limit reached. Returning empty results for this source.');
                         span.setAttribute('output.results_count', 0);
                         span.setAttribute('output.error', 'Rate limit reached');
                         return [];
                     }
-                    throw new Error(`Semantic Scholar API error: ${response.status}`);
+                    throw new Error(`Semantic Scholar API error: ${response?.status || 'Unknown'}`);
                 }
 
                 const data = await response.json();
@@ -56,14 +74,20 @@ export async function searchSemanticScholar(
                 span.setAttribute('output.documents', tracePayload(journals));
 
                 return journals;
-            } catch (error) {
+            } catch (error: any) {
                 // Don't log expected rate limit errors that might bubble up (double safety)
-                if (error instanceof Error && error.message.includes('429')) {
+                if (error.message?.includes('429')) {
                     span.setAttribute('output.results_count', 0);
                     span.setAttribute('output.error', 'Rate limit reached');
                     return [];
                 }
-                console.error('Semantic Scholar search failed:', error);
+
+                if (error.name === 'TimeoutError' || error.code === 'ETIMEDOUT') {
+                    console.warn('⚠️ Semantic Scholar timeout after retries. Skipping this source.');
+                } else {
+                    console.error('Semantic Scholar search failed:', error);
+                }
+
                 span.recordException(error as Error);
                 span.setAttribute('output.results_count', 0);
                 return [];

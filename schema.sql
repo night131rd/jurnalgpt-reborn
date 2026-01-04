@@ -1,3 +1,23 @@
+-- Table: profiles
+create table public.profiles (
+  id uuid not null,
+  email text null,
+  role text null default 'free'::text,
+  created_at timestamp with time zone null default timezone ('utc'::text, now()),
+  sisa_quota integer null default 5,
+  tipe_premium public.premium_type null,
+  tanggal_upgrade_premium timestamp with time zone null,
+  sisa_waktu_premium integer null,
+  constraint profiles_pkey primary key (id),
+  constraint profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create trigger trigger_set_quota BEFORE INSERT
+or
+update OF role on profiles for EACH row
+execute FUNCTION set_quota_based_on_role ();
+
+
 -- Table: payment_intents
 CREATE TABLE public.payment_intents (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,4 +85,30 @@ CREATE POLICY "Users can upload payment proofs"
 
 CREATE POLICY "Anyone can view proofs via public url"
     ON storage.objects FOR SELECT
-    USING (bucket_id = 'payment_proofs');
+    
+-- Table: api_key_limits
+CREATE TABLE public.api_key_limits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider text NOT NULL,              -- e.g., 'cerebras'
+  model text NOT NULL,                 -- e.g., 'llama3.1-8b'
+  key_name text NOT NULL,              -- e.g., 'CEREBRAS_KEY_1'
+  limit_type text NOT NULL,            -- rpm | rph | rpd | tpm | tph | tpd
+  remaining integer NOT NULL,
+  reset_at timestamp with time zone NOT NULL,
+  status text NOT NULL DEFAULT 'ok',    -- ok | limited
+  last_seen_at timestamp with time zone DEFAULT now(),
+  UNIQUE (provider, model, key_name, limit_type)
+);
+
+-- Enable RLS for api_key_limits
+ALTER TABLE public.api_key_limits ENABLE ROW LEVEL SECURITY;
+
+-- Policy for Admins to manage limits
+CREATE POLICY "Admins can manage api_key_limits"
+    ON public.api_key_limits FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );

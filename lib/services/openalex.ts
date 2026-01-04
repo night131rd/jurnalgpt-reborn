@@ -13,55 +13,62 @@ export async function searchOpenAlex(
     return tracer.startActiveSpan('OpenAlex Retrieval', async (span: Span) => {
         span.setAttribute('openinference.span.kind', 'RETRIEVER');
         try {
-            // Set input attributes
             span.setAttribute('input.query', query);
             span.setAttribute('input.year_range', `${minYear}-${maxYear}`);
 
-            // Build query parameters
+            const fetchWithTimeout = async (url: string, options: RequestInit, timeout: number = 10000) => {
+                return fetch(url, { ...options, signal: AbortSignal.timeout(timeout) });
+            };
+
             const params = new URLSearchParams({
-                // Use filter=default.search:term1|term2 for boolean OR search
                 filter: `publication_year:${minYear}-${maxYear},default.search:${query}`,
-                // Select only necessary fields to reduce payload size
                 select: 'id,doi,title,publication_year,primary_location,abstract_inverted_index,authorships,relevance_score,cited_by_count',
                 sort: 'relevance_score:desc',
                 per_page: '50',
                 mailto: process.env.OPENALEX_EMAIL || 'user@example.com'
             });
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+            let response;
+            let retries = 1;
 
-            const response = await fetch(`${OPENALEX_API}?${params}`, {
-                headers: {
-                    'User-Agent': 'JurnalGPT/1.0'
-                },
-                signal: controller.signal
-            });
+            while (retries >= 0) {
+                try {
+                    response = await fetchWithTimeout(`${OPENALEX_API}?${params}`, {
+                        headers: { 'User-Agent': 'JurnalGPT/1.0' }
+                    });
+                    break;
+                } catch (e: any) {
+                    if ((e.name === 'TimeoutError' || e.code === 'ETIMEDOUT' || e.message?.includes('fetch failed')) && retries > 0) {
+                        console.warn(`⚠️ OpenAlex timeout or fetch failed, retrying... (${retries} left)`);
+                        retries--;
+                        continue;
+                    }
+                    throw e;
+                }
+            }
 
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                span.setAttribute('output.error', `API Error ${response.status}`);
-                throw new Error(`OpenAlex API error: ${response.status}`);
+            if (!response || !response.ok) {
+                span.setAttribute('output.error', `API Error ${response?.status || 'Unknown'}`);
+                return [];
             }
 
             const data = await response.json();
             const works: OpenAlexWork[] = data.results || [];
 
-            // Transform results
             const journals = works
                 .map((work) => transformOpenAlexWork(work))
                 .filter(journal => journal.abstract && journal.abstract !== 'No abstract available' && journal.abstract.length > 50);
 
-            // Set output attributes
             span.setAttribute('output.results_count', journals.length);
-
-            // Log FULL documents for evaluation (smart tracing)
             span.setAttribute('output.documents', tracePayload(journals));
 
             return journals;
-        } catch (error) {
-            console.error('OpenAlex search failed:', error);
+        } catch (error: any) {
+            if (error.name === 'TimeoutError' || error.code === 'ETIMEDOUT') {
+                console.warn('⚠️ OpenAlex timeout after retries. Skipping.');
+            } else {
+                console.error('OpenAlex search failed:', error);
+            }
             span.recordException(error as Error);
             span.setAttribute('output.results_count', 0);
             return [];
@@ -70,7 +77,6 @@ export async function searchOpenAlex(
         }
     });
 }
-
 
 function transformOpenAlexWork(work: OpenAlexWork): Journal {
     return {

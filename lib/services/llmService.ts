@@ -4,55 +4,112 @@ import { tracer } from '@/lib/instrumentation';
 import { Span } from '@opentelemetry/api';
 import { tracePayload } from '@/lib/utils/traceUtils';
 
+
+import { keyManager } from './keyManager';
+
 export const runtime = "nodejs";
 
-
-
-const apiKeys = (process.env.CEREBRAS_API_KEYS?.split(',') ?? [])
-    .map(key => key.trim())
-    .filter(key => key !== '');
-
-if (apiKeys.length === 0) {
-    console.error('CEREBRAS_API_KEYS is not set or empty in environment variables');
-    throw new Error('CEREBRAS_API_KEYS is not set');
-}
-
-let currentIndex = 0;
-
-function getNextApiKey(): string {
-    const key = apiKeys[currentIndex];
-    currentIndex = (currentIndex + 1) % apiKeys.length;
-    return key;
-}
+const MODEL_NAME = 'gpt-oss-120b'; // Example model, adjust if necessary
 
 function createClient(apiKey: string) {
     return new Cerebras({ apiKey });
 }
 
+interface CerebrasResponse {
+    _response: {
+        headers: Headers;
+    };
+}
+
+function parseRateLimitHeader(headers: Headers, name: string): number {
+    const val = headers.get(name);
+    return val ? Number(val) : -1;
+}
+
+async function handleRateLimits(headers: Headers, keyName: string) {
+    const periods = ['minute', 'hour', 'day'] as const;
+    const types = ['requests', 'tokens'] as const;
+
+    const RPM_THRESHOLD = 5;
+    const TPM_THRESHOLD = 2000;
+
+    for (const period of periods) {
+        for (const type of types) {
+            const remainingName = `x-ratelimit-remaining-${type}-${period}`;
+            const resetName = `x-ratelimit-reset-${type}-${period}`;
+
+            const remaining = parseRateLimitHeader(headers, remainingName);
+            const reset = parseRateLimitHeader(headers, resetName);
+
+            if (remaining === -1) continue;
+
+            // Determine limit type for DB (rpm, rph, rpd, tpm, tph, tpd)
+            const dbLimitType = `${type === 'requests' ? 'r' : 't'}p${period[0]}` as any;
+            const threshold = type === 'requests' ? RPM_THRESHOLD : TPM_THRESHOLD;
+
+            if (remaining < threshold) {
+                console.warn(`⚠️ High usage detected for ${keyName} (${dbLimitType}): ${remaining} remaining. Reporting to DB.`);
+                await keyManager.reportLimit({
+                    provider: 'cerebras',
+                    model: MODEL_NAME,
+                    keyName: keyName,
+                    limitType: dbLimitType,
+                    remaining: remaining,
+                    resetInSeconds: Math.ceil(reset)
+                });
+            }
+        }
+    }
+}
+
 async function withCerebrasRotation<T>(
-    fn: (client: Cerebras) => Promise<T>,
+    fn: (client: Cerebras, keyName: string) => Promise<T>,
     span?: Span,
-    maxRetry = apiKeys.length
+    maxRetry = 3
 ): Promise<T> {
     let lastError: unknown;
 
     for (let i = 0; i < maxRetry; i++) {
-        const apiKey = getNextApiKey();
-        const client = createClient(apiKey);
+        const { key, name } = await keyManager.getAvailableKey('cerebras', MODEL_NAME);
+        const client = createClient(key);
 
         try {
             span?.addEvent('Using Cerebras API key', {
-                key_index: i,
+                key_name: name,
+                retry_count: i
             });
 
-            return await fn(client);
+            const result = await fn(client, name);
+
+            // If the SDK provides the raw response in the result
+            if ((result as any)?._response?.headers) {
+                await handleRateLimits((result as any)._response.headers, name);
+            }
+
+            return result;
         } catch (err: any) {
             lastError = err;
 
-            if (err?.status === 429 || err?.message?.includes('rate limit')) {
-                span?.addEvent('API key rate limited, rotating', {
-                    key_index: i,
+            // Report limit if we get a 429
+            if (err?.status === 429) {
+                await keyManager.reportLimit({
+                    provider: 'cerebras',
+                    model: MODEL_NAME,
+                    keyName: name,
+                    limitType: 'rpm', // Default to rpm if status is 429
+                    remaining: 0,
+                    resetInSeconds: 60 // Default reset if not provided in error
                 });
+                continue;
+            }
+
+            // Handle Connection/Timeout errors
+            if (err?.code === 'ETIMEDOUT' || err?.message?.includes('Connection error') || err?.message?.includes('fetch failed')) {
+                console.warn(`⚠️ Cerebras connection error on key ${name}, retrying...`, err.message);
+                continue;
+            }
+
+            if (err?.message?.includes('rate limit')) {
                 continue;
             }
 
@@ -106,9 +163,9 @@ OUTPUT FORMAT (STRICT):
 ["query1", "query2", "query3", "query4", "query5"]
 `;
 
-                const response = await await withCerebrasRotation(
-                    (client) => client.chat.completions.create({
-                        model: 'gpt-oss-120b',
+                const response = await withCerebrasRotation(
+                    (client, keyName) => client.chat.completions.create({
+                        model: MODEL_NAME,
                         messages: [
                             { role: 'system', content: prompt },
                             { role: 'user', content: query }],
@@ -231,8 +288,8 @@ export async function* generateAnswer(
         tulisan jurnal ilmiah. Seluruh aturan di atas **WAJIB** dipatuhi. </output>`;
 
         const response = await withCerebrasRotation(
-            (client) => client.chat.completions.create({
-                model: 'gpt-oss-120b',
+            (client, keyName) => client.chat.completions.create({
+                model: MODEL_NAME,
                 messages: [
                     { role: 'system', content: system_prompt },
                     { role: 'user', content: query }
