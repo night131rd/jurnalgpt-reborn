@@ -68,6 +68,7 @@ async function withCerebrasRotation<T>(
     maxRetry = 3
 ): Promise<T> {
     let lastError: unknown;
+    let retriesExhausted = false;
 
     for (let i = 0; i < maxRetry; i++) {
         const { key, name } = await keyManager.getAvailableKey('cerebras', MODEL_NAME);
@@ -92,14 +93,66 @@ async function withCerebrasRotation<T>(
 
             // Report limit if we get a 429
             if (err?.status === 429) {
+                console.error(`🚨 429 Rate Limit Error for ${name}:`, err.message);
+
+                // Parse error message for more details
+                const errorMsg = err?.message || '';
+                const errorBody = err?.error || {};
+
+                // Log full error for debugging
+                console.error('Full error details:', {
+                    status: err?.status,
+                    message: errorMsg,
+                    error: errorBody,
+                    headers: err?.headers
+                });
+
+                // Determine limit type from error message first
+                let limitType: 'rpm' | 'rph' | 'rpd' | 'tpm' | 'tph' | 'tpd' = 'rpm';
+
+                if (errorMsg.toLowerCase().includes('tokens per day') || errorMsg.toLowerCase().includes('tpd')) {
+                    limitType = 'tpd';
+                } else if (errorMsg.toLowerCase().includes('tokens per hour') || errorMsg.toLowerCase().includes('tph')) {
+                    limitType = 'tph';
+                } else if (errorMsg.toLowerCase().includes('tokens per minute') || errorMsg.toLowerCase().includes('tpm')) {
+                    limitType = 'tpm';
+                } else if (errorMsg.toLowerCase().includes('requests per day') || errorMsg.toLowerCase().includes('rpd')) {
+                    limitType = 'rpd';
+                } else if (errorMsg.toLowerCase().includes('requests per hour') || errorMsg.toLowerCase().includes('rph')) {
+                    limitType = 'rph';
+                }
+
+                // Set appropriate default reset time based on limit type
+                let resetInSeconds: number;
+                if (limitType === 'rpm' || limitType === 'tpm') {
+                    resetInSeconds = 60; // 1 minute
+                } else if (limitType === 'rph' || limitType === 'tph') {
+                    resetInSeconds = 3600; // 1 hour (60 minutes)
+                } else { // rpd or tpd
+                    resetInSeconds = 86400; // 24 hours
+                }
+
+                // Try to extract reset time from error message (this overrides default)
+                // Cerebras might include "Retry after X seconds" or similar
+                const retryMatch = errorMsg.match(/retry after (\d+) seconds?/i);
+                if (retryMatch) {
+                    resetInSeconds = parseInt(retryMatch[1]);
+                    console.log(`📊 Extracted reset time from error: ${resetInSeconds}s`);
+                }
+
+                console.log(`📊 Rate limit type detected: ${limitType}, reset in ${resetInSeconds}s`);
+
                 await keyManager.reportLimit({
                     provider: 'cerebras',
                     model: MODEL_NAME,
                     keyName: name,
-                    limitType: 'rpm', // Default to rpm if status is 429
+                    limitType: limitType,
                     remaining: 0,
-                    resetInSeconds: 60 // Default reset if not provided in error
+                    resetInSeconds: resetInSeconds
                 });
+
+                // Mark that we hit rate limits
+                retriesExhausted = true;
                 continue;
             }
 
@@ -110,11 +163,17 @@ async function withCerebrasRotation<T>(
             }
 
             if (err?.message?.includes('rate limit')) {
+                retriesExhausted = true;
                 continue;
             }
 
             throw err;
         }
+    }
+
+    // If we exhausted all retries due to rate limits, throw a user-friendly error
+    if (retriesExhausted && lastError && (lastError as any)?.status === 429) {
+        throw new Error('All API keys have reached their rate limits. Please try again later or upgrade your plan for more capacity.');
     }
 
     throw lastError;

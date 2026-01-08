@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Image from 'next/image';
+import { useAdminAuth } from '@/lib/hooks/useAdminAuth';
 
 interface PendingPayment {
     id: string;
@@ -20,32 +21,10 @@ interface PendingPayment {
 }
 
 export default function AdminPaymentsPage() {
+    const { isAdmin, loading: authLoading } = useAdminAuth();
     const [payments, setPayments] = useState<PendingPayment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isAdmin, setIsAdmin] = useState(false);
     const [approvingId, setApprovingId] = useState<string | null>(null);
-
-    const checkAdmin = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            window.location.href = '/';
-            return;
-        }
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
-
-        if (profile?.role !== 'admin') {
-            window.location.href = '/';
-            return;
-        }
-
-        setIsAdmin(true);
-        fetchPayments();
-    };
 
     const fetchPayments = async () => {
         try {
@@ -67,8 +46,10 @@ export default function AdminPaymentsPage() {
     };
 
     useEffect(() => {
-        checkAdmin();
-    }, []);
+        if (isAdmin) {
+            fetchPayments();
+        }
+    }, [isAdmin]);
 
     const handleApprove = async (intentId: string, userId: string) => {
         if (!confirm('Approve this payment and upgrade user to Premium?')) return;
@@ -99,11 +80,13 @@ export default function AdminPaymentsPage() {
         }
     };
 
-    if (loading && !isAdmin) {
+    if (authLoading || !isAdmin) {
         return <div className="min-h-screen bg-zinc-50 flex items-center justify-center">Checking permissions...</div>;
     }
 
-    if (!isAdmin) return null;
+    if (loading) {
+        return <div className="min-h-screen bg-zinc-50 flex items-center justify-center">Loading...</div>;
+    }
 
     return (
         <div className="min-h-screen bg-zinc-50 p-8">

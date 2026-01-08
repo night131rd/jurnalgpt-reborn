@@ -35,11 +35,36 @@ export class KeyManager {
         }
     }
 
+    private async cleanupExpiredKeys(provider: string, model: string): Promise<void> {
+        try {
+            const now = new Date().toISOString();
+            const { data, error } = await supabaseAdmin
+                .from('api_key_limits')
+                .delete()
+                .eq('provider', provider)
+                .eq('model', model)
+                .eq('status', 'limited')
+                .lt('reset_at', now)
+                .select();
+
+            if (error) {
+                console.warn('Error cleaning up expired keys:', error.message);
+            } else if (data && data.length > 0) {
+                console.log(`✅ Cleaned up ${data.length} expired limited keys for ${provider}/${model}`);
+            }
+        } catch (e: any) {
+            console.warn('Network error cleaning up expired keys:', e.message);
+        }
+    }
+
     public async getAvailableKey(provider: string, model: string): Promise<{ key: string, name: string }> {
         const providerKeys = this.keys.get(provider) ?? [];
         if (providerKeys.length === 0) {
             throw new Error(`No keys found for provider: ${provider}`);
         }
+
+        // Auto-cleanup expired limited keys first
+        await this.cleanupExpiredKeys(provider, model);
 
         // Check DB for blocked keys
         let limitedNames = new Set<string>();
@@ -73,17 +98,22 @@ export class KeyManager {
 
         // Find keys that are NOT limited
         const availableKeys = providerKeys
-            .map((key, index) => ({ key, name: `${provider.toUpperCase()}_KEY_${index + 1}` }))
+            .map((key, index) => ({
+                key,
+                name: `${provider.toUpperCase()}_KEY_${index + 1}_${key.slice(-5)}`
+            }))
             .filter(k => !limitedNames.has(k.name));
 
         if (availableKeys.length === 0) {
+            console.warn(`⚠️ All keys are limited for ${provider}/${model}. Using fallback key.`);
             // Fallback: use any key if all are marked limited (safety)
             const selected = providerKeys[Math.floor(Math.random() * providerKeys.length)];
-            return { key: selected, name: `${provider.toUpperCase()}_KEY_1` }; // Simplified name for fallback
+            return { key: selected, name: `${provider.toUpperCase()}_KEY_1_${selected.slice(-5)}` };
         }
 
         // Pick a random available key
         const selected = availableKeys[Math.floor(Math.random() * availableKeys.length)];
+        console.log(`✅ Selected key: ${selected.name} (${availableKeys.length}/${providerKeys.length} available)`);
         return selected;
     }
 
