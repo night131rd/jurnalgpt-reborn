@@ -98,9 +98,9 @@ export class KeyManager {
 
         // Find keys that are NOT limited
         const availableKeys = providerKeys
-            .map((key, index) => ({
+            .map((key) => ({
                 key,
-                name: `${provider.toUpperCase()}_KEY_${index + 1}_${key.slice(-5)}`
+                name: `${provider.toUpperCase()}_KEY_${key.slice(-10)}`
             }))
             .filter(k => !limitedNames.has(k.name));
 
@@ -108,7 +108,7 @@ export class KeyManager {
             console.warn(`⚠️ All keys are limited for ${provider}/${model}. Using fallback key.`);
             // Fallback: use any key if all are marked limited (safety)
             const selected = providerKeys[Math.floor(Math.random() * providerKeys.length)];
-            return { key: selected, name: `${provider.toUpperCase()}_KEY_1_${selected.slice(-5)}` };
+            return { key: selected, name: `${provider.toUpperCase()}_KEY_${selected.slice(-10)}` };
         }
 
         // Pick a random available key
