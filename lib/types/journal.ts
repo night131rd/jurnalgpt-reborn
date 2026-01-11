@@ -9,7 +9,7 @@ export interface Journal {
     doi?: string;
     authors?: string[];
     citationCount?: number;
-    source?: 'openalex' | 'semantic-scholar';
+    source?: 'openalex' | 'semantic-scholar' | 'core-ac-uk';
 }
 
 export interface SearchResult {
@@ -40,4 +40,17 @@ export interface SemanticScholarPaper {
     venue: string;
     citationCount: number;
     authors: Array<{ name: string }>;
+}
+
+export interface CoreWork {
+    id: number;
+    title: string;
+    abstract: string;
+    yearPublished: number;
+    downloadUrl: string;
+    doi: string | undefined;
+    authors: Array<{ name: string }>;
+    publisher: string;
+    createdDate: string;
+    citationCount: number;
 }

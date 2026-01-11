@@ -8,6 +8,8 @@ import { getGoogleSuggestions } from "@/lib/services/googleSuggestions";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { User as SupabaseUser } from "@supabase/supabase-js";
+import SearchStatus from "./SearchStatus";
+import { SearchStatus as SearchStatusType } from "@/lib/services/searchService";
 
 interface SearchCardProps {
     onSearch: (query: string, minYear: string, maxYear: string, scope: 'all' | 'national' | 'international') => void;
@@ -17,6 +19,7 @@ interface SearchCardProps {
     initialScope?: 'all' | 'national' | 'international';
     refreshTrigger?: number;
     isLoading?: boolean;
+    loadingStatus?: SearchStatusType | null;
 }
 
 export default function SearchCard({
@@ -26,7 +29,8 @@ export default function SearchCard({
     initialMaxYear = "2025",
     initialScope = 'all',
     refreshTrigger = 0,
-    isLoading = false
+    isLoading = false,
+    loadingStatus = null
 }: SearchCardProps) {
     const [query, setQuery] = useState(initialQuery);
     const [minYear, setMinYear] = useState(initialMinYear);
@@ -150,6 +154,12 @@ export default function SearchCard({
                             onChange={(e) => {
                                 setQuery(e.target.value);
                                 setShowSuggestions(true);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSearch();
+                                }
                             }}
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => {
@@ -279,10 +289,21 @@ export default function SearchCard({
                 </form>
             </motion.div>
 
-            {/* Quota Info for Free/Guest Users */}
-            <AnimatePresence>
-                {!isPremium && quota !== null && (
+            {/* Quota Info or Search Status */}
+            <AnimatePresence mode="wait">
+                {isLoading ? (
                     <motion.div
+                        key="status"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="mt-4"
+                    >
+                        <SearchStatus status={loadingStatus} />
+                    </motion.div>
+                ) : !isPremium && quota !== null && (
+                    <motion.div
+                        key="quota"
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}

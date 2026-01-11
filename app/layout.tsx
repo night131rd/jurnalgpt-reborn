@@ -3,6 +3,14 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { Analytics } from "@vercel/analytics/next"
+import { Inter } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,26 +78,19 @@ const jsonLd = {
 
 import LayoutWrapper from "@/components/LayoutWrapper";
 
+
+
+
+
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-        <Navbar />
-        <LayoutWrapper>
-          {children}
-          <Analytics />
-        </LayoutWrapper>
-      </body>
+    <html lang="en" className={cn(inter.variable, geistSans.variable, geistMono.variable)}>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }

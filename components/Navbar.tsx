@@ -9,8 +9,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { User as SupabaseUser } from "@supabase/supabase-js";
+import SearchHistoryDropdown from "@/components/SearchHistoryDropdown";
 
-export default function Navbar() {
+export default function Navbar({ isSticky, externalScrolled }: { isSticky?: boolean, externalScrolled?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -20,6 +21,8 @@ export default function Navbar() {
 
     const pathname = usePathname();
     const router = useRouter();
+
+    const isNavbarScrolled = externalScrolled !== undefined ? externalScrolled : scrolled;
 
     useEffect(() => {
         // Handle scroll
@@ -94,8 +97,9 @@ export default function Navbar() {
     return (
         <nav
             className={cn(
-                "fixed top-0 z-50 w-full transition-all duration-300 border-b border-transparent",
-                scrolled
+                "z-50 transition-all duration-300 border-b border-transparent",
+                isSticky ? "sticky top-0 w-full" : "fixed top-0 w-full",
+                isNavbarScrolled
                     ? "bg-white/80 backdrop-blur-md border-zinc-200"
                     : "bg-transparent"
             )}
@@ -177,6 +181,9 @@ export default function Navbar() {
                                     Upgrade Premium
                                 </Link>
                             )}
+
+                            {/* History Dropdown */}
+                            <SearchHistoryDropdown />
 
                             {/* User Profile Dropdown */}
                             <div className="relative">

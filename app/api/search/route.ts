@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Execute search
-        const { journals, stream } = await searchJournals(
+        const searchGenerator = await searchJournals(
             query.trim(),
             minYear || '2020',
             maxYear || '2025',
@@ -186,23 +186,25 @@ export async function POST(request: NextRequest) {
         const readable = new ReadableStream({
             async start(controller) {
                 try {
-                    // 1. Send journals as a JSON line with prefix "J:"
-                    const journalsPayload = JSON.stringify({ journals });
-                    controller.enqueue(encoder.encode(`J:${journalsPayload}\n`));
-
-                    // 2. Stream answer text chunks with prefix "T:"
-                    // In case tokens contain newlines, we can handle them on client, but usually tokens are small.
-                    // To be safe, we can just stream raw text after the newline, but splitting by newlines on client might be tricky if content has newlines.
-                    // Let's use "T:" for every chunk and ensure we handle newlines in content correctly.
-                    // Actually, simpler: "J:{...}\n" then just raw text.
-                    // The client reads "J:{...}\n", parses it, and treats the rest as answer stream.
-
-                    for await (const chunk of stream) {
-                        controller.enqueue(encoder.encode(chunk));
+                    for await (const status of searchGenerator) {
+                        if (status.type === 'answer_start') {
+                            // Start streaming the answer content
+                            for await (const chunk of status.stream) {
+                                // Use JSON stringify to safely handle newlines in chunks
+                                controller.enqueue(encoder.encode(`T:${JSON.stringify(chunk)}\n`));
+                            }
+                        } else if (status.type === 'journals') {
+                            // Send journals list
+                            controller.enqueue(encoder.encode(`J:${JSON.stringify({ journals: status.journals })}\n`));
+                        } else {
+                            // Send other status updates (S:)
+                            controller.enqueue(encoder.encode(`S:${JSON.stringify(status)}\n`));
+                        }
                     }
 
                     controller.close();
                 } catch (error) {
+                    console.error('Streaming error:', error);
                     controller.error(error);
                 }
             },

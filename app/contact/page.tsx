@@ -1,14 +1,14 @@
 "use client";
 
-import Navbar from "@/components/Navbar";
+import DashboardNavbar from "@/components/DashboardNavbar";
 import { motion } from "framer-motion";
 
 export default function ContactPage() {
     return (
         <div className="min-h-screen bg-white">
-            <Navbar />
+            <DashboardNavbar />
 
-            <main className="flex flex-col items-center justify-center pt-40 pb-20 px-4">
+            <main className="flex flex-col items-center justify-center pt-20 pb-20 px-4">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}

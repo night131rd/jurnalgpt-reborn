@@ -1,7 +1,7 @@
 import type { OpenAlexWork, Journal } from '@/lib/types/journal';
 import { tracer } from '@/lib/instrumentation';
 import { Span } from '@opentelemetry/api';
-import { tracePayload } from '@/lib/utils/traceUtils';
+import { tracePayload, traceDocuments } from '@/lib/utils/traceUtils';
 
 const OPENALEX_API = 'https://api.openalex.org/works';
 
@@ -10,7 +10,7 @@ export async function searchOpenAlex(
     minYear: string,
     maxYear: string
 ): Promise<Journal[]> {
-    return tracer.startActiveSpan('OpenAlex Retrieval', async (span: Span) => {
+    return tracer.startActiveSpan('rag.retrieval.openalex', async (span: Span) => {
         span.setAttribute('openinference.span.kind', 'RETRIEVER');
         try {
             span.setAttribute('input.query', query);
@@ -48,7 +48,6 @@ export async function searchOpenAlex(
             }
 
             if (!response || !response.ok) {
-                span.setAttribute('output.error', `API Error ${response?.status || 'Unknown'}`);
                 return [];
             }
 
@@ -60,7 +59,7 @@ export async function searchOpenAlex(
                 .filter(journal => journal.abstract && journal.abstract !== 'No abstract available' && journal.abstract.length > 50);
 
             span.setAttribute('output.results_count', journals.length);
-            span.setAttribute('output.documents', tracePayload(journals));
+            span.setAttribute('output.documents', traceDocuments(journals));
 
             return journals;
         } catch (error: any) {
@@ -70,7 +69,6 @@ export async function searchOpenAlex(
                 console.error('OpenAlex search failed:', error);
             }
             span.recordException(error as Error);
-            span.setAttribute('output.results_count', 0);
             return [];
         } finally {
             span.end();

@@ -1,3 +1,4 @@
+import { searchCoreAc } from './coreAc';
 import { searchOpenAlex } from './openalex';
 import { searchSemanticScholar } from './semanticScholar';
 import { generateAnswer, expandQuery } from './llmService';
@@ -7,79 +8,87 @@ import type { SearchResult, Journal } from '@/lib/types/journal';
 import { tracer } from '@/lib/instrumentation';
 import { Span } from '@opentelemetry/api';
 
-export async function searchJournals(
+import { tracePayload } from '@/lib/utils/traceUtils';
+
+export type SearchStatus =
+    | { type: 'expansion', keywords: string[] }
+    | { type: 'retrieval', sources: { name: string; count: number }[] }
+    | { type: 'reranking' }
+    | { type: 'reranked', count: number }
+    | { type: 'journals', journals: Journal[] }
+    | { type: 'answer_start', stream: AsyncGenerator<string, void, unknown> };
+
+export async function* searchJournals(
     query: string,
     minYear: string,
     maxYear: string,
     scope: 'all' | 'national' | 'international' = 'all',
     isPremium: boolean = false
-): Promise<{ journals: Journal[]; stream: AsyncGenerator<string, void, unknown> }> {
-    const rerankCount = isPremium ? 16 : 8;
+): AsyncGenerator<SearchStatus, void, unknown> {
+    const rerankCount = isPremium ? 30 : 20;
     const resultCount = isPremium ? 8 : 4;
 
-    return tracer.startActiveSpan('JurnalGPT Search Pipeline', async (span: Span) => {
-        try {
-            span.setAttribute('openinference.span.kind', 'CHAIN');
-            // Set input attributes for the parent span
-            span.setAttribute('input.query', query);
-            span.setAttribute('input.year_range', `${minYear}-${maxYear}`);
-            span.setAttribute('input.scope', scope);
+    // STEP 1: Expand query using LLM (with scope)
+    console.log(`🔍 Original query: "${query}" [Scope: ${scope}]`);
+    const expandedQueries = await expandQuery(query, scope);
+    console.log(`✨ Expanded to: ${JSON.stringify(expandedQueries)}`);
 
-            // STEP 1: Expand query using LLM (with scope)
-            console.log(`🔍 Original query: "${query}" [Scope: ${scope}]`);
-            const expandedQueries = await expandQuery(query, scope);
-            console.log(`✨ Expanded to: ${JSON.stringify(expandedQueries)}`);
+    yield { type: 'expansion', keywords: expandedQueries };
 
+    // STEP 2: Search APIs (Optimized with Boolean Queries)
+    const oaQuery = expandedQueries.join('|');
+    const ssQuery = expandedQueries.join('|');
+    const coreQuery = expandedQueries[0];
 
-            // STEP 2: Search both APIs (Optimized with Boolean Queries)
-            // OpenAlex uses 'OR', Semantic Scholar uses '|' (pipe)
-            // Update: OpenAlex optimization guide recommends using pipe '|' inside filter=default.search
-            const combinedQuery = expandedQueries.join('|');
+    console.log(`  Combined Query OpenAlex: "${oaQuery}"`);
+    console.log(`  Combined Query Semantic Scholar: "${ssQuery}"`);
+    console.log(`  Combined Query Core: "${coreQuery}"`);
 
-            console.log(`  Combined Query: "${combinedQuery}"`);
+    const [openAlexResults, semanticResults, coreResult] = await Promise.allSettled([
+        searchOpenAlex(oaQuery, minYear, maxYear),
+        searchSemanticScholar(ssQuery, minYear, maxYear),
+        searchCoreAc(coreQuery, minYear, maxYear)
+    ]);
 
-            const [openAlexResults, semanticResults] = await Promise.allSettled([
-                searchOpenAlex(combinedQuery, minYear, maxYear),
-                searchSemanticScholar(combinedQuery, minYear, maxYear)
-            ]);
+    // Extract successful results
+    const openAlex = openAlexResults.status === 'fulfilled' ? openAlexResults.value : [];
+    const semantic = semanticResults.status === 'fulfilled' ? semanticResults.value : [];
+    const coreAc = coreResult.status === 'fulfilled' ? coreResult.value : [];
 
-            // STEP 3: Extract successful results
-            const openAlex = openAlexResults.status === 'fulfilled' ? openAlexResults.value : [];
-            const semantic = semanticResults.status === 'fulfilled' ? semanticResults.value : [];
+    console.log(`  ✅ OpenAlex: ${openAlex.length} results`);
+    console.log(`  ✅ Semantic Scholar: ${semantic.length} results`);
+    console.log(`  ✅ Core.ac.uk: ${coreAc.length} results`);
 
-            console.log(`  ✅ OpenAlex: ${openAlex.length} results`);
-            console.log(`  ✅ Semantic Scholar: ${semantic.length} results`);
+    yield {
+        type: 'retrieval',
+        sources: [
+            { name: 'OpenAlex', count: openAlex.length },
+            { name: 'Semantic Scholar', count: semantic.length },
+            { name: 'Core.ac.uk', count: coreAc.length }
+        ]
+    };
 
-            const allJournals = [...openAlex, ...semantic];
+    const allJournals = [...openAlex, ...semantic, ...coreAc];
+    console.log(`  ✅ Total raw results: ${allJournals.length}`);
+    const mergedJournals = mergeAndDeduplicate(allJournals);
+    console.log(`  🔀 Merged: ${mergedJournals.length} unique journals`);
 
+    // STEP 4: Semantic Reranking
+    yield { type: 'reranking' };
 
-            console.log(`  ✅ Total raw results: ${allJournals.length}`);
+    // We send up to rerankCount documents for reranking to get the absolute best context
+    console.log(`  📊 Reranking ${mergedJournals.slice(0, rerankCount).length} documents...`);
+    const rerankedJournals = await rerankDocuments(query, mergedJournals.slice(0, rerankCount), 20);
+    console.log(`  ✅ Reranked top ${rerankedJournals.length} documents`);
 
-            // STEP 3: Merge and deduplicate
-            const mergedJournals = mergeAndDeduplicate(allJournals);
-            console.log(`  🔀 Merged: ${mergedJournals.length} unique journals`);
+    yield { type: 'reranked', count: rerankedJournals.length };
 
-            // STEP 4: Semantic Reranking
-            console.log(`  📊 Reranking ${mergedJournals.slice(0, rerankCount).length} documents...`);
-            // We send up to rerankCount documents for reranking to get the absolute best context
-            const rerankedJournals = await rerankDocuments(query, mergedJournals.slice(0, rerankCount), resultCount);
-            console.log(`  ✅ Reranked top ${rerankedJournals.length} documents`);
+    // Final journals list for the UI
+    const finalJournals = rerankedJournals;
+    yield { type: 'journals', journals: finalJournals };
 
-            // STEP 5: Generate AI answer
-            // Use top resultCount filtered/reranked documents for context
-            const contextJournals = rerankedJournals.slice(0, resultCount);
-            console.log(`  🤖 Generating AI answer with ${contextJournals.length} context docs...`);
-            const stream = generateAnswer(query, contextJournals);
-
-            // Set output attributes
-            span.setAttribute('output.total_journals', rerankedJournals.slice(0, resultCount).length);
-
-            return {
-                stream,
-                journals: rerankedJournals.slice(0, resultCount) // Return top re-ranked journals to frontend
-            };
-        } finally {
-            span.end();
-        }
-    });
+    // STEP 5: Generate AI answer
+    console.log(`  🤖 Generating AI answer with ${rerankedJournals.length} context docs...`);
+    const stream = generateAnswer(query, rerankedJournals.slice(0, resultCount));
+    yield { type: 'answer_start', stream };
 }

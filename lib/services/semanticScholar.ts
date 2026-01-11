@@ -1,7 +1,7 @@
 import type { SemanticScholarPaper, Journal } from '@/lib/types/journal';
 import { tracer } from '@/lib/instrumentation';
 import { Span } from '@opentelemetry/api';
-import { tracePayload } from '@/lib/utils/traceUtils';
+import { tracePayload, traceDocuments } from '@/lib/utils/traceUtils';
 
 const S2_API = 'https://api.semanticscholar.org/graph/v1/paper/search';
 
@@ -10,10 +10,9 @@ export async function searchSemanticScholar(
     minYear: string,
     maxYear: string
 ): Promise<Journal[]> {
-    return tracer.startActiveSpan('Semantic Scholar Retrieval', async (span: Span) => {
+    return tracer.startActiveSpan('rag.retrieval.semantic_scholar', async (span: Span) => {
         span.setAttribute('openinference.span.kind', 'RETRIEVER');
         try {
-            // Set input attributes
             span.setAttribute('input.query', query);
             span.setAttribute('input.year_range', `${minYear}-${maxYear}`);
 
@@ -54,8 +53,6 @@ export async function searchSemanticScholar(
                 if (!response || !response.ok) {
                     if (response?.status === 429) {
                         console.warn('⚠️ Semantic Scholar rate limit reached. Returning empty results for this source.');
-                        span.setAttribute('output.results_count', 0);
-                        span.setAttribute('output.error', 'Rate limit reached');
                         return [];
                     }
                     throw new Error(`Semantic Scholar API error: ${response?.status || 'Unknown'}`);
@@ -67,18 +64,13 @@ export async function searchSemanticScholar(
                     .map(transformSemanticScholarPaper)
                     .filter(journal => journal.abstract && journal.abstract !== 'No abstract available' && journal.abstract.length > 50);
 
-                // Set output attributes
                 span.setAttribute('output.results_count', journals.length);
-
-                // Log FULL documents for evaluation (smart tracing)
-                span.setAttribute('output.documents', tracePayload(journals));
+                span.setAttribute('output.documents', traceDocuments(journals));
 
                 return journals;
             } catch (error: any) {
                 // Don't log expected rate limit errors that might bubble up (double safety)
                 if (error.message?.includes('429')) {
-                    span.setAttribute('output.results_count', 0);
-                    span.setAttribute('output.error', 'Rate limit reached');
                     return [];
                 }
 
@@ -89,7 +81,6 @@ export async function searchSemanticScholar(
                 }
 
                 span.recordException(error as Error);
-                span.setAttribute('output.results_count', 0);
                 return [];
             }
         } finally {

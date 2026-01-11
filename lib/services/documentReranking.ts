@@ -1,7 +1,7 @@
 import type { Journal } from '@/lib/types/journal';
 import { tracer } from '@/lib/instrumentation';
 import { Span } from '@opentelemetry/api';
-import { tracePayload } from '@/lib/utils/traceUtils';
+import { tracePayload, traceDocuments } from '@/lib/utils/traceUtils';
 
 const LANGSEARCH_API = 'https://api.langsearch.com/v1/rerank';
 
@@ -21,7 +21,7 @@ export async function rerankDocuments(
     documents: Journal[],
     topN: number
 ): Promise<Journal[]> {
-    return tracer.startActiveSpan('Document Reranking', async (span: Span) => {
+    return tracer.startActiveSpan('rag.reranking', async (span: Span) => {
         span.setAttribute('openinference.span.kind', 'RERANKER');
         try {
             // Set input attributes
@@ -29,7 +29,7 @@ export async function rerankDocuments(
             span.setAttribute('input.documents_count', documents.length);
             span.setAttribute('input.top_n', topN);
             // Log FULL input documents for evaluation (smart tracing)
-            span.setAttribute('input.documents', tracePayload(documents));
+            span.setAttribute('input.documents', traceDocuments(documents));
 
             if (documents.length === 0) {
                 span.setAttribute('output.reranked_count', 0);
@@ -53,7 +53,7 @@ export async function rerankDocuments(
                 // Prepare documents for API
                 // Truncate abstract further to avoid 504 Timeouts
                 const docTexts = documents.map(doc =>
-                    `Title: ${doc.title}\nAbstract: ${doc.abstract ? doc.abstract.substring(0, 1000) : ''}`
+                    `Title: ${doc.title}\nAbstract: ${doc.abstract}`
                 );
 
                 // Add Timeout (12 seconds)
@@ -94,7 +94,7 @@ export async function rerankDocuments(
 
                 // Set output attributes
                 span.setAttribute('output.reranked_count', rerankedDocs.length);
-                span.setAttribute('output.documents', tracePayload(rerankedDocs));
+                span.setAttribute('output.documents', traceDocuments(rerankedDocs));
                 span.setAttribute('output.api_key_used', `${selectedApiKey.substring(0, 4)}...`);
 
                 // Record relevance scores

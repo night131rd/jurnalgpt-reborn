@@ -9,6 +9,32 @@ export function shouldTraceFullPayload(): boolean {
     return true; // Default to true for dev
 }
 
+/**
+ * Formats a list of journals for OpenInference compatibility
+ * Returns an array of JSON-stringified document objects (OTel compatible array)
+ */
+export function traceDocuments(journals: any[]): string[] {
+    if (!journals || journals.length === 0) return [];
+
+    if (!shouldTraceFullPayload()) {
+        return [JSON.stringify({
+            _summary: `[${journals.length} items] (Full payload hidden in production)`
+        })];
+    }
+
+    return journals.map((j, idx) => JSON.stringify({
+        id: j.id || `doc_${idx}`,
+        content: j.abstract || j.text || '',
+        metadata: {
+            title: j.title || '',
+            authors: j.authors || [],
+            year: j.year || '',
+            doi: j.doi || '',
+            url: j.url || ''
+        }
+    }));
+}
+
 export function tracePayload(data: any): string {
     if (shouldTraceFullPayload()) {
         if (typeof data === 'string') return data;
