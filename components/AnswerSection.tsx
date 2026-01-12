@@ -176,7 +176,7 @@ function CitationBadge({ id, journal, onOpenDetail }: { id: string; journal: Jou
                                     <span>Details</span>
                                 </button>
 
-                                {journal.journalLink && journal.journalLink !== "#" && (
+                                {((journal.pdfLink && journal.pdfLink !== "#") || (journal.journalLink && journal.journalLink !== "#")) && (
                                     <button
                                         onClick={(e) => {
                                             e.preventDefault();
@@ -209,9 +209,9 @@ function TabButton({ active, icon, label, onClick }: { active: boolean, icon: Re
         <button
             onClick={onClick}
             className={`
-                flex items-center gap-2 pb-3 pt-5 transition-none relative
-                ${active ? 'text-zinc-900 border-b-2 border-blue-600' : 'text-zinc-500 hover:text-zinc-800'}
-            `}
+                        flex items-center gap-2 pb-3 pt-5 transition-none relative
+                        ${active ? 'text-zinc-900 border-b-2 border-blue-600' : 'text-zinc-500 hover:text-zinc-800'}
+                    `}
         >
             {icon}
             <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>

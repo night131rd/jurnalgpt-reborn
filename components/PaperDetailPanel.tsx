@@ -34,7 +34,7 @@ export default function PaperDetailPanel({ journal, onClose, initialTab = 'abstr
             ? journal.authors.join(", ")
             : "Unknown Author";
 
-        const citation = `${authorText}. (${journal.year}). ${journal.title}. ${journal.publisher || journal.source}. ${journal.journalLink && journal.journalLink !== "#" ? journal.journalLink : ""}`;
+        const citation = `${authorText}. (${journal.year}). ${journal.title}. ${journal.publisher || journal.source}. ${journal.pdfLink || journal.journalLink || ""}`;
         navigator.clipboard.writeText(citation);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -167,7 +167,7 @@ export default function PaperDetailPanel({ journal, onClose, initialTab = 'abstr
                                     </button>
                                 </div>
                                 <p className="text-[13px] text-zinc-600 leading-relaxed italic pr-4">
-                                    {journal.authors && journal.authors.length > 0 ? journal.authors.join(", ") : "Unknown Author"}. ({journal.year}). {journal.title}. {journal.publisher || journal.source}.
+                                    {journal.authors && journal.authors.length > 0 ? journal.authors.join(", ") : "Unknown Author"}. ({journal.year}). {journal.title}. {journal.publisher || journal.source}. {journal.pdfLink || journal.journalLink || ""}
                                 </p>
                             </div>
                         </div>
@@ -176,11 +176,12 @@ export default function PaperDetailPanel({ journal, onClose, initialTab = 'abstr
 
                 {activeTab === 'pdf' && (
                     <div className="h-full w-full bg-zinc-50">
-                        {journal.journalLink && journal.journalLink !== "#" ? (
+                        {(journal.pdfLink || (journal.journalLink && journal.journalLink !== "#")) ? (
                             <iframe
-                                src={journal.journalLink}
+                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(journal.pdfLink || journal.journalLink)}&embedded=true`}
                                 className="w-full h-full bg-white border-0"
                                 title="Journal PDF"
+                                allowFullScreen
                             />
                         ) : (
                             <div className="flex flex-col items-center justify-center p-10 text-center gap-6 h-full">
@@ -192,7 +193,7 @@ export default function PaperDetailPanel({ journal, onClose, initialTab = 'abstr
                                     <p className="text-zinc-500 text-sm max-w-[240px]">Pratinjau PDF tidak tersedia secara otomatis untuk sumber ini.</p>
                                 </div>
                                 <a
-                                    href={journal.journalLink}
+                                    href={journal.pdfLink || journal.journalLink}
                                     target="_blank"
                                     className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md"
                                 >
@@ -213,9 +214,9 @@ export default function PaperDetailPanel({ journal, onClose, initialTab = 'abstr
                             <Bookmark size={19} className="hover:text-zinc-600 cursor-pointer transition-colors" />
                         </div>
 
-                        {journal.journalLink && journal.journalLink !== "#" && (
+                        {(journal.pdfLink || (journal.journalLink && journal.journalLink !== "#")) && (
                             <a
-                                href={journal.journalLink}
+                                href={journal.pdfLink || journal.journalLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 transition-colors text-white text-[13px] font-bold px-4 py-2.5 rounded-xl border border-zinc-700/50"

@@ -22,7 +22,7 @@ export async function searchOpenAlex(
 
             const params = new URLSearchParams({
                 filter: `publication_year:${minYear}-${maxYear},default.search:${query}`,
-                select: 'id,doi,title,publication_year,primary_location,abstract_inverted_index,authorships,relevance_score,cited_by_count',
+                select: 'id,doi,title,publication_year,primary_location,best_oa_location,abstract_inverted_index,authorships,relevance_score,cited_by_count',
                 sort: 'relevance_score:desc',
                 per_page: '50',
                 mailto: process.env.OPENALEX_EMAIL || 'user@example.com'
@@ -84,6 +84,7 @@ function transformOpenAlexWork(work: OpenAlexWork): Journal {
         journalLink: work.doi ? `https://doi.org/${work.doi}` : work.id,
         abstract: reconstructAbstract(work.abstract_inverted_index) || 'No abstract available',
         doi: work.doi,
+        pdfLink: work.best_oa_location?.pdf_url || work.primary_location?.pdf_url,
         authors: work.authorships?.map(a => a.author.display_name) || [],
         citationCount: work.cited_by_count || 0,
         source: 'openalex'

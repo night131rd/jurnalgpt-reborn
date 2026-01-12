@@ -4,17 +4,16 @@ import { searchSemanticScholar } from './semanticScholar';
 import { generateAnswer, expandQuery } from './llmService';
 import { mergeAndDeduplicate } from '@/lib/utils/mergeResults';
 import { rerankDocuments } from './documentReranking';
+import { summarizeAndScoreJournals } from './summarizeAndScore';
 import type { SearchResult, Journal } from '@/lib/types/journal';
-import { tracer } from '@/lib/instrumentation';
-import { Span } from '@opentelemetry/api';
-
-import { tracePayload } from '@/lib/utils/traceUtils';
 
 export type SearchStatus =
     | { type: 'expansion', keywords: string[] }
     | { type: 'retrieval', sources: { name: string; count: number }[] }
     | { type: 'reranking' }
     | { type: 'reranked', count: number }
+    | { type: 'summarizing' }
+    | { type: 'summarized', count: number }
     | { type: 'journals', journals: Journal[] }
     | { type: 'answer_start', stream: AsyncGenerator<string, void, unknown> };
 
@@ -26,6 +25,7 @@ export async function* searchJournals(
     isPremium: boolean = false
 ): AsyncGenerator<SearchStatus, void, unknown> {
     const rerankCount = isPremium ? 30 : 20;
+    const summaryCount = isPremium ? 16 : 8;
     const resultCount = isPremium ? 8 : 4;
 
     // STEP 1: Expand query using LLM (with scope)
@@ -77,18 +77,52 @@ export async function* searchJournals(
     yield { type: 'reranking' };
 
     // We send up to rerankCount documents for reranking to get the absolute best context
-    console.log(`  📊 Reranking ${mergedJournals.slice(0, rerankCount).length} documents...`);
-    const rerankedJournals = await rerankDocuments(query, mergedJournals.slice(0, rerankCount), 20);
+    console.log(`  📊 Reranking ${mergedJournals.slice(0, 50).length} documents...`);
+    const rerankedJournals = await rerankDocuments(query, mergedJournals.slice(0, 50), rerankCount);
     console.log(`  ✅ Reranked top ${rerankedJournals.length} documents`);
 
     yield { type: 'reranked', count: rerankedJournals.length };
 
-    // Final journals list for the UI
-    const finalJournals = rerankedJournals;
+    // STEP 4.5: Summarize and Score
+    yield { type: 'summarizing' };
+    const enrichedJournals = await summarizeAndScoreJournals(query, rerankedJournals.slice(0, summaryCount));
+    yield { type: 'summarized', count: enrichedJournals.length };
+
+    // Combine enriched journals (with summaries) and remaining reranked journals for UI
+    // Enriched journals come first (most relevant + analyzed)
+    const processedTitles = new Set<string>();
+
+    // 1. Enriched (Top Priority)
+    const enrichedUnique = enrichedJournals.filter(j => {
+        const title = j.title.trim().toLowerCase();
+        if (processedTitles.has(title)) return false;
+        processedTitles.add(title);
+        return true;
+    });
+
+    // 2. Remaining Reranked (Medium Priority)
+    const rerankedUnique = rerankedJournals.filter(j => {
+        const title = j.title.trim().toLowerCase();
+        if (processedTitles.has(title)) return false;
+        processedTitles.add(title);
+        return true;
+    });
+
+    // 3. Merged / Rest (Low Priority)
+    const mergedUnique = mergedJournals.filter(j => {
+        const title = j.title.trim().toLowerCase();
+        if (processedTitles.has(title)) return false;
+        processedTitles.add(title);
+        return true;
+    });
+
+    const finalJournals = [...enrichedUnique, ...rerankedUnique, ...mergedUnique];
+    console.log(`  📋 Final UI journals: ${enrichedUnique.length} enriched + ${rerankedUnique.length} reranked + ${mergedUnique.length} merged = ${finalJournals.length} total`);
+
     yield { type: 'journals', journals: finalJournals };
 
-    // STEP 5: Generate AI answer
-    console.log(`  🤖 Generating AI answer with ${rerankedJournals.length} context docs...`);
-    const stream = generateAnswer(query, rerankedJournals.slice(0, resultCount));
+    // STEP 5: Generate AI answer with enriched context (top resultCount journals)
+    console.log(`  🤖 Generating AI answer with ${resultCount} enriched context docs...`);
+    const stream = generateAnswer(query, enrichedJournals.slice(0, resultCount));
     yield { type: 'answer_start', stream };
 }

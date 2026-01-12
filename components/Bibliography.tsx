@@ -13,7 +13,7 @@ export default function Bibliography({ journals }: BibliographyProps) {
     const [copied, setCopied] = useState(false);
 
     const generateAPACitation = (journal: Journal, index: number) => {
-        return `[${index + 1}] ${journal.title}. (${journal.year}). ${journal.publisher}. ${journal.journalLink}`;
+        return `[${index + 1}] ${journal.title}. (${journal.year}). ${journal.publisher}. ${journal.pdfLink || journal.journalLink}`;
     };
 
     const handleCopyAll = () => {

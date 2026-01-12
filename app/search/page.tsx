@@ -31,12 +31,27 @@ function SearchContent() {
     const [detailTab, setDetailTab] = useState<'abstract' | 'pdf'>('abstract');
     const resultsRef = useRef<HTMLDivElement>(null);
 
-    // Auto-trigger search if query parameter exists
+    // Auto-trigger search or restore from cache
     useEffect(() => {
         if (initialQuery && !showResults && !isLoading) {
+            const cacheKey = `search_cache_${initialQuery}_${initialMinYear}_${initialMaxYear}_${initialScope}`;
+            const cachedData = sessionStorage.getItem(cacheKey);
+
+            if (cachedData) {
+                try {
+                    const parsed = JSON.parse(cachedData);
+                    setSearchResult(parsed);
+                    setShowResults(true);
+                    setIsLoading(false);
+                    return; // Skip new search if cache hit
+                } catch (e) {
+                    sessionStorage.removeItem(cacheKey);
+                }
+            }
+
             handleSearch(initialQuery, initialMinYear, initialMaxYear, initialScope);
         }
-    }, [initialQuery]);
+    }, [initialQuery, initialMinYear, initialMaxYear, initialScope]);
 
     const handleSearch = async (query: string, minYear: string, maxYear: string, scope: 'all' | 'national' | 'international') => {
         setIsLoading(true);
@@ -117,8 +132,16 @@ function SearchContent() {
                 }
             }
 
-            // Save search history with full conversation results after streaming completes (fire and forget)
+            // Save to Cache & History
             if (receivedJournals.length > 0) {
+                // 1. Cache
+                const cacheKey = `search_cache_${query}_${minYear}_${maxYear}_${scope}`;
+                sessionStorage.setItem(cacheKey, JSON.stringify({
+                    journals: receivedJournals,
+                    answer: accumulatedAnswer
+                }));
+
+                // 2. History (Fire and Forget)
                 const conversation = [
                     { role: 'user', content: query, filters: { minYear, maxYear, scope } },
                     { role: 'assistant', content: accumulatedAnswer, journals: receivedJournals }

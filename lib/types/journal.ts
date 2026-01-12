@@ -7,9 +7,12 @@ export interface Journal {
     abstract: string;
     // Optional fields
     doi?: string;
+    pdfLink?: string;           // Direct link to PDF (if available)
     authors?: string[];
     citationCount?: number;
     source?: 'openalex' | 'semantic-scholar' | 'core-ac-uk';
+    summary?: string;           // LLM-generated concise summary
+    correlationScore?: number;  // 0.0-1.0 relevance to query
 }
 
 export interface SearchResult {
@@ -25,6 +28,10 @@ export interface OpenAlexWork {
     publication_year: number;
     primary_location: {
         source: { display_name: string };
+        pdf_url?: string;
+    };
+    best_oa_location?: {
+        pdf_url?: string;
     };
     abstract_inverted_index: Record<string, number[]>;
     cited_by_count: number;
@@ -40,6 +47,7 @@ export interface SemanticScholarPaper {
     venue: string;
     citationCount: number;
     authors: Array<{ name: string }>;
+    openAccessPdf?: { url: string } | null;
 }
 
 export interface CoreWork {

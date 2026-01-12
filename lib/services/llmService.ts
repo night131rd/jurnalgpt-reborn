@@ -229,7 +229,6 @@ export async function expandQuery(
                         ],
                         reasoning_effort: 'low',
                         temperature: 1.5,
-                        max_tokens: 100,
                         stop: ['\n\n']
                     }),
                     span
@@ -289,13 +288,35 @@ export async function* generateAnswer(
         // Prepare context with numbered indexing for citation
         const context = journals
             .map((journal, index) => {
-                const authors = journal.authors && journal.authors.length > 0
-                    ? journal.authors.join(", ")
-                    : "Author tidak diketahui";
-                return `[ID: ${index + 1}]
-Penulis: ${authors}
-Tahun: ${journal.year}
-Abstrak: ${journal.abstract}`;
+                const authors = journal.authors || [];
+                const year = journal.year;
+
+                // Helper to format citation: Name (Year), Name & Name (Year), Name et al. (Year)
+                let citation = "Author tidak diketahui";
+                if (authors.length === 1) {
+                    const lastName = authors[0].split(' ').pop() || authors[0];
+                    citation = `${lastName} (${year})`;
+                } else if (authors.length === 2) {
+                    const lastName1 = authors[0].split(' ').pop() || authors[0];
+                    const lastName2 = authors[1].split(' ').pop() || authors[1];
+                    citation = `${lastName1} dan ${lastName2} (${year})`;
+                } else if (authors.length > 2) {
+                    const lastName = authors[0].split(' ').pop() || authors[0];
+                    citation = `${lastName} et al. (${year})`;
+                } else {
+                    citation = `(${year})`;
+                }
+
+                // Use summary if available, otherwise fallback to truncated abstract
+                const content = journal.summary || journal.abstract;
+                const relevance = journal.correlationScore
+                    ? `Relevansi: ${(journal.correlationScore * 100).toFixed(0)}%`
+                    : '';
+
+                // Format: [ID: 1] Smith et al. (2023) | Relevansi: 95%
+                // Ringkasan: ...
+                return `[ID: ${index + 1}] ${citation} ${relevance ? `| ${relevance}` : ''}
+Ringkasan: ${content}`;
             })
             .join('\n\n---\n\n');
 
@@ -320,10 +341,10 @@ Abstrak: ${journal.abstract}`;
             Gunakan teks tebal  temuan penting dan 
             teks miring untuk  istilah asing atau bahasa lain. 
             Awali paragraf dengan kalimat topik yang jelas tanpa mengutip jurnal dan pastikan alur logis antarkalimat tetap terjaga.
-            </style_guide>
+            </style_guide>  
 
             <citations> 
-            - Dalam kalimat tuliskan kutipan, Nama (Tahun), Nama dan Nama (Tahun), Nama et al. (Tahun)
+            - Dalam kalimat akhir tuliskan Author dan tahun.
             - Gunakan marker numerik dalam tanda kurung siku seperti [1], [2], [3] untuk mensitasi.
             - Angka di dalam kurung [n] merujuk pada [ID: n] yang ada di KONTEKS JURNAL.
             - Marker ditempatkan langsung SETELAH klaim faktual atau pernyataan yang didukung sumber tersebut.

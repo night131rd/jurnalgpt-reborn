@@ -24,7 +24,7 @@ export async function searchSemanticScholar(
                 const params = new URLSearchParams({
                     query: query,
                     year: `${minYear}-${maxYear}`,
-                    fields: 'title,year,abstract,url,venue,citationCount,authors',
+                    fields: 'title,year,abstract,url,venue,citationCount,authors,openAccessPdf',
                     limit: '10'
                 });
 
@@ -98,6 +98,7 @@ function transformSemanticScholarPaper(paper: SemanticScholarPaper): Journal {
         abstract: paper.abstract || 'No abstract available',
         authors: paper.authors?.map(a => a.name) || [],
         citationCount: paper.citationCount || 0,
+        pdfLink: paper.openAccessPdf?.url,
         source: 'semantic-scholar'
     };
 }

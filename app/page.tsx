@@ -7,13 +7,23 @@ import SearchCard from "@/components/SearchCard";
 import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 export default function Home() {
   const router = useRouter();
 
   const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = (query: string, minYear: string, maxYear: string, scope: 'all' | 'national' | 'international') => {
+  const handleSearch = async (query: string, minYear: string, maxYear: string, scope: 'all' | 'national' | 'international') => {
+    // Check for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      // User requested "masuk ke sign up"
+      router.push('/register');
+      return;
+    }
+
     setIsSearching(true);
     const params = new URLSearchParams({
       q: query,

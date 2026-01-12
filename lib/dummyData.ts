@@ -4,6 +4,7 @@ export interface Journal {
     year: number;
     publisher: string;
     journalLink: string;
+    pdfLink?: string;
     abstract: string;
 }
 

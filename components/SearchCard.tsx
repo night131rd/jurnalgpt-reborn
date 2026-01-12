@@ -301,7 +301,7 @@ export default function SearchCard({
                     >
                         <SearchStatus status={loadingStatus} />
                     </motion.div>
-                ) : !isPremium && quota !== null && (
+                ) : !isPremium && quota !== null && !isGuest && (
                     <motion.div
                         key="quota"
                         initial={{ opacity: 0, y: -10 }}

@@ -37,6 +37,7 @@ interface SavedJournal {
     id: string;
     title: string;
     journalLink: string;
+    pdfLink?: string;
     saved_at: string;
 }
 
@@ -283,7 +284,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                                     {filteredJournals.map((journal) => (
                                         <a
                                             key={journal.id}
-                                            href={journal.journalLink}
+                                            href={journal.pdfLink || journal.journalLink}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:text-zinc-900 hover:bg-zinc-100/80 transition-all truncate group"

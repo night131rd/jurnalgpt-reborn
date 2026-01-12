@@ -22,7 +22,7 @@ export async function rerankDocuments(
     topN: number
 ): Promise<Journal[]> {
     return tracer.startActiveSpan('rag.reranking', async (span: Span) => {
-        span.setAttribute('openinference.span.kind', 'RERANKER');
+        span.setAttribute('openinference.span.kind', 'tool');
         try {
             // Set input attributes
             span.setAttribute('input.query', query);
@@ -86,6 +86,9 @@ export async function rerankDocuments(
                 if (data.code !== 200) {
                     throw new Error(`Rerank failed: ${data.msg}`);
                 }
+
+                // Ensure results are sorted by relevance score (descending)
+                data.results.sort((a, b) => b.relevance_score - a.relevance_score);
 
                 // Map results back to original documents
                 const rerankedDocs = data.results.map(result => {

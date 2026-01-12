@@ -95,9 +95,10 @@ function transformCoreWork(work: CoreWork): Journal {
         title: work.title || 'Untitled',
         year: work.yearPublished || new Date().getFullYear(),
         publisher: work.publisher || 'Unknown',
-        journalLink: work.downloadUrl || (work.id ? `https://core.ac.uk/works/${work.id}` : ''),
+        journalLink: work.doi ? `https://doi.org/${work.doi}` : (work.downloadUrl || (work.id ? `https://core.ac.uk/works/${work.id}` : '')),
         abstract: work.abstract || 'No abstract available',
         doi: work.doi,
+        pdfLink: work.downloadUrl,
         authors: work.authors?.map(a => a.name) || [],
         citationCount: work.citationCount || 0,
         source: 'core-ac-uk'
