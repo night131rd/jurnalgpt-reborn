@@ -24,16 +24,42 @@ interface DashboardNavbarProps {
 
 export default function DashboardNavbar({ className }: DashboardNavbarProps) {
     const [user, setUser] = useState<SupabaseUser | null>(null);
+    const [isPremium, setIsPremium] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const pathname = usePathname();
 
     useEffect(() => {
+        const fetchUserProfile = async (userId: string) => {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', userId)
+                .single();
+
+            if (data) {
+                setIsPremium(data.role === 'premium');
+            } else {
+                setIsPremium(false);
+                if (error) console.error('Error fetching profile:', error);
+            }
+        };
+
         supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user ?? null);
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+            if (currentUser) {
+                fetchUserProfile(currentUser.id);
+            }
         });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null);
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+            if (currentUser) {
+                fetchUserProfile(currentUser.id);
+            } else {
+                setIsPremium(false);
+            }
         });
 
         return () => subscription.unsubscribe();
@@ -72,15 +98,17 @@ export default function DashboardNavbar({ className }: DashboardNavbarProps) {
             </div>
 
             {/* Center - Upgrade */}
-            <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
-                <Link
-                    href="/pricing"
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all shadow-sm shadow-blue-200"
-                >
-                    <Zap size={14} fill="currentColor" />
-                    UPGRADE
-                </Link>
-            </div>
+            {!isPremium && (
+                <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
+                    <Link
+                        href="/pricing"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all shadow-sm shadow-blue-200"
+                    >
+                        <Zap size={14} fill="currentColor" />
+                        UPGRADE
+                    </Link>
+                </div>
+            )}
 
             {/* Right side - Routes */}
             <div className="flex items-center gap-6">

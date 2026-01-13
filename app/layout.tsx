@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "JurnalGPT – AI pencari jurnal",
-  description: "Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
+  description: "Platform AI yang menjawab berdasarkan jurnal ilmiah untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
   keywords: ["JurnalGPT", "Jurnal AI", "AI Cari Jurnal", "AI Pencari Jurnal", "AI Pencari Jurnal Gratis", "Penelitian Ilmiah", "Laprak", "Skripsi"],
   metadataBase: new URL('https://jurnalgpt.app'),
   alternates: {
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "JurnalGPT – AI untuk Jurnal Ilmiah",
-    description: "Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
+    description: "Platform AI yang menjawab berdasarkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
     url: 'https://jurnalgpt.app',
     siteName: 'JurnalGPT',
     images: [
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: "JurnalGPT – AI untuk Jurnal Ilmiah",
-    description: "Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
+    description: "Platform AI yang menjawab berdasarkan jurnal ilmiag untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.",
     images: ['/og-image.png'],
   },
   icons: {
@@ -62,7 +62,7 @@ const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebApplication',
   name: 'JurnalGPT',
-  description: 'Platform AI yang menjawab berdasarjkan jurnal untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.',
+  description: 'Platform AI yang menjawab berdasarkan jurnal ilmiah untuk membantu mahasiswa dalam mengerjakan laprak & skripsi.',
   url: 'https://jurnalgpt.app',
   applicationCategory: 'EducationalApplication',
   operatingSystem: 'All',
