@@ -214,6 +214,9 @@ export async function POST(request: NextRequest) {
             headers: {
                 'Content-Type': 'text/plain; charset=utf-8',
                 'Transfer-Encoding': 'chunked',
+                'Cache-Control': 'no-cache, no-transform, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'X-Content-Type-Options': 'nosniff',
             },
         });
     } catch (error) {

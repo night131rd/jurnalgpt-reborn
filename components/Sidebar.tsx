@@ -56,7 +56,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [historySearch, setHistorySearch] = useState("");
     const [isMobileOpen, setIsMobileOpen] = useState(false);
-    const [isHistoryOpen, setIsHistoryOpen] = useState(true);
     const [isJournalsOpen, setIsJournalsOpen] = useState(true);
 
     useEffect(() => {
@@ -66,7 +65,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             setUser(currentUser);
             if (currentUser && session) {
                 fetchUserProfile(currentUser.id);
-                fetchRecentHistory(session.access_token);
                 fetchSavedJournals(session.access_token);
             }
         });
@@ -76,7 +74,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             setUser(currentUser);
             if (currentUser) {
                 fetchUserProfile(currentUser.id);
-                fetchRecentHistory(session?.access_token || "");
                 fetchSavedJournals(session?.access_token || "");
             } else {
                 setHistory([]);
@@ -109,19 +106,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         if (data) setIsPremium(data.role === 'premium');
     };
 
-    const fetchRecentHistory = async (token: string) => {
-        try {
-            const response = await fetch('/api/history?limit=20', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setHistory(data.history || []);
-            }
-        } catch (error) {
-            console.error('Failed to fetch history:', error);
-        }
-    };
 
     const fetchSavedJournals = async (token: string) => {
         try {
@@ -206,50 +190,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                     )}
                 </Link>
 
-                {isOpen && (
-                    <div className=" px-1">
-                        {isSearchOpen ? (
-                            <div className="relative flex items-center gap-2 h-9 px-2 bg-zinc-50 rounded-lg border border-zinc-200">
-                                <Search className="h-5 w-5 text-zinc-400 shrink-0" />
-                                <input
-                                    autoFocus
-                                    type="text"
-                                    placeholder="Cari Riwayat"
-                                    value={historySearch}
-                                    onChange={(e) => setHistorySearch(e.target.value)}
-                                    className="w-full bg-transparent text-[15px] outline-none placeholder:text-zinc-400 text-zinc-900"
-                                />
-                                <button
-                                    onClick={() => {
-                                        setIsSearchOpen(false);
-                                        setHistorySearch("");
-                                    }}
-                                    className="p-1 rounded-md hover:bg-zinc-200 transition-colors"
-                                >
-                                    <X className="h-3 w-3 text-zinc-600" />
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setIsSearchOpen(true)}
-                                className="flex items-center gap-2 w-full h-9 px-3 rounded-lg text-[15px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-colors text-left"
-                            >
-                                <Search className="h-4 w-4 shrink-0" />
-                                <span className="font-medium">Cari Riwayat</span>
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {!isOpen && (
-                    <Link
-                        href="/history"
-                        className="flex items-center justify-center p-2.5 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
-                        title="Riwayat & Koleksi"
-                    >
-                        <History className="h-5 w-5" />
-                    </Link>
-                )}
 
             </div>
 
@@ -306,51 +246,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                     </AnimatePresence>
                 </div>
 
-                {/* History Section - Flat & Collapsible */}
-                <div className="mt-6">
-                    <button
-                        onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                        className="w-full px-3 mb-2 flex items-center gap-2 group hover:text-zinc-900 transition-colors"
-                    >
-                        <span className="text-[11px] font-semibold text-zinc-400 group-hover:text-zinc-600 transition-colors tracking-tight">Your chats</span>
-                        <ChevronRight className={cn(
-                            "h-3 w-3 text-zinc-400 transition-transform duration-200",
-                            isHistoryOpen && "rotate-90"
-                        )} />
-                    </button>
-
-                    <AnimatePresence initial={false}>
-                        {isHistoryOpen && (
-                            <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.2, ease: "easeInOut" }}
-                                className="overflow-hidden"
-                            >
-                                <div className="flex flex-col gap-0.5">
-                                    {filteredHistory.map((entry) => (
-                                        <Link
-                                            key={entry.id}
-                                            href={`/history/${entry.id}`}
-                                            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:text-zinc-900 hover:bg-zinc-100/80 transition-all truncate group"
-                                        >
-                                            <span className="truncate text-zinc-600 font-semibold group-hover:text-zinc-900 transition-colors leading-tight capitalize">
-                                                {entry.query}
-                                            </span>
-                                        </Link>
-                                    ))}
-
-                                    {filteredHistory.length === 0 && (
-                                        <div className="px-3 py-2 text-[10px] text-zinc-400 italic">
-                                            {historySearch ? "Tidak ada hasil ditemukan" : "No recent history"}
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
             </div>
 
             {/* Bottom Section */}

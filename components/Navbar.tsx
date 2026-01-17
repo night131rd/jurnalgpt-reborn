@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { User as SupabaseUser } from "@supabase/supabase-js";
-import SearchHistoryDropdown from "@/components/SearchHistoryDropdown";
 
 export default function Navbar({ isSticky, externalScrolled }: { isSticky?: boolean, externalScrolled?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -182,8 +181,6 @@ export default function Navbar({ isSticky, externalScrolled }: { isSticky?: bool
                                 </Link>
                             )}
 
-                            {/* History Dropdown */}
-                            <SearchHistoryDropdown />
 
                             {/* User Profile Dropdown */}
                             <div className="relative">

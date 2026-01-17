@@ -25,8 +25,8 @@ interface StepConfig {
 const STEPS: StepConfig[] = [
     { id: "init", label: "Inisialisasi", icon: Sparkles, color: "text-blue-500" },
     { id: "expansion", label: "Memahami pencarian", icon: Search, color: "text-indigo-500" },
-    { id: "retrieval", label: "Mengumpulkan referensi", icon: LayoutGrid, color: "text-violet-500" },
     { id: "reranking", label: "Menilai relevansi", icon: Brain, color: "text-purple-500" },
+    { id: "summarizing", label: "Menganalisis jurnal", icon: Sparkles, color: "text-amber-500" },
     { id: "answer_start", label: "Menyusun jawaban", icon: PenLine, color: "text-fuchsia-500" },
 ];
 
@@ -36,10 +36,11 @@ export default function SearchStatus({ status }: SearchStatusProps) {
         switch (status.type) {
             case "expansion":
                 return 1;
-            case "retrieval":
-                return 2;
             case "reranking":
             case "reranked":
+                return 2;
+            case "summarizing":
+            case "summarized":
                 return 3;
             case "journals":
             case "answer_start":
@@ -142,30 +143,42 @@ export default function SearchStatus({ status }: SearchStatusProps) {
                             </motion.div>
                         )}
 
-                        {status?.type === "retrieval" && (
+                        {status?.type === "retrieval_update" && (
                             <motion.div
-                                key="retrieval-meta"
+                                key="retrieval-update-meta"
                                 initial={{ opacity: 0, x: 16 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -16 }}
                                 className="
-                  flex gap-2
-                  text-[10px] font-semibold
-                  tracking-widest uppercase
-                  text-zinc-400
-                "
+                                    flex gap-2
+                                    text-[10px] font-semibold
+                                    tracking-widest uppercase
+                                    text-zinc-400
+                                "
                             >
-                                {status.sources.map((s) => (
-                                    <div
-                                        key={s.name}
-                                        className="flex items-center gap-1
-                      bg-zinc-50 px-2 py-1
-                      rounded-lg border border-zinc-100"
-                                    >
-                                        <span className="text-blue-500">{s.count}</span>
-                                        <span>{s.name}</span>
-                                    </div>
-                                ))}
+                                <div className="flex items-center gap-1 bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100">
+                                    <span className="text-blue-500">{status.count}</span>
+                                    <span>{status.source}</span>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {status?.type === "retrieval_complete" && (
+                            <motion.div
+                                key="retrieval-complete-meta"
+                                initial={{ opacity: 0, x: 16 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -16 }}
+                                className="
+                                    text-[10px] font-semibold
+                                    tracking-widest uppercase
+                                    text-blue-600
+                                    bg-blue-50
+                                    px-2 py-1
+                                    rounded-lg border border-blue-100
+                                "
+                            >
+                                {status.total} Total Jurnal Ditemukan
                             </motion.div>
                         )}
 

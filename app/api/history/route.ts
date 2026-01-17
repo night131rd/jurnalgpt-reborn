@@ -46,44 +46,11 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// POST: Save new search to history
+// POST: Save new search to history (DISABLED)
 export async function POST(request: NextRequest) {
     try {
-        const authHeader = request.headers.get('authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const token = authHeader.substring(7);
-
-        const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-            global: { headers: { Authorization: `Bearer ${token}` } }
-        });
-
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { query, payload } = await request.json();
-
-        if (!query || !payload) {
-            return NextResponse.json({ error: 'Query and payload are required' }, { status: 400 });
-        }
-
-        const { error } = await supabase
-            .from('search_history')
-            .insert({
-                user_id: user.id,
-                query,
-                payload
-            });
-
-        if (error) {
-            console.error('Failed to save search history:', error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        return NextResponse.json({ success: true });
+        // Search history saving is disabled as requested
+        return NextResponse.json({ success: true, message: 'History persistence is disabled' });
     } catch (error) {
         console.error('History POST error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

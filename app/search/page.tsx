@@ -14,6 +14,9 @@ import type { SearchResult, Journal } from "@/lib/types/journal";
 import { useSearchParams } from "next/navigation";
 import DashboardNavbar from "@/components/DashboardNavbar";
 import { supabase } from "@/lib/supabase";
+import ResultsSummary from "@/components/ResultsSummary";
+import Link from "next/link";
+import { Lock, Zap } from "lucide-react";
 
 function SearchContent() {
     const searchParams = useSearchParams();
@@ -25,11 +28,39 @@ function SearchContent() {
     const [isLoading, setIsLoading] = useState(false);
     const [loadingStatus, setLoadingStatus] = useState<any>(null);
     const [showResults, setShowResults] = useState(false);
-    const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
+
+    // Decoupled States
+    const [journals, setJournals] = useState<Journal[]>([]);
+    const [answer, setAnswer] = useState('');
+    const [currentSearchKey, setCurrentSearchKey] = useState('');
+
+    const [userRole, setUserRole] = useState<"free" | "premium" | "guest">("free");
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+
     const [detailJournal, setDetailJournal] = useState<Journal | null>(null);
     const [detailTab, setDetailTab] = useState<'abstract' | 'pdf'>('abstract');
     const resultsRef = useRef<HTMLDivElement>(null);
+
+    // Fetch user role
+    useEffect(() => {
+        const fetchRole = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (data?.role) {
+                    setUserRole(data.role as "free" | "premium");
+                }
+            } else {
+                setUserRole("guest");
+            }
+        };
+        fetchRole();
+    }, []);
 
     // Auto-trigger search or restore from cache
     useEffect(() => {
@@ -40,7 +71,8 @@ function SearchContent() {
             if (cachedData) {
                 try {
                     const parsed = JSON.parse(cachedData);
-                    setSearchResult(parsed);
+                    setJournals(parsed.journals);
+                    setAnswer(parsed.answer);
                     setShowResults(true);
                     setIsLoading(false);
                     return; // Skip new search if cache hit
@@ -53,10 +85,33 @@ function SearchContent() {
         }
     }, [initialQuery, initialMinYear, initialMaxYear, initialScope]);
 
+    const abortControllerRef = useRef<AbortController | null>(null);
+
     const handleSearch = async (query: string, minYear: string, maxYear: string, scope: 'all' | 'national' | 'international') => {
+        const searchKey = `${query}-${minYear}-${maxYear}-${scope}`;
+
+        // 0. Update URL search parameters
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            params.set('q', query);
+            params.set('minYear', minYear);
+            params.set('maxYear', maxYear);
+            params.set('scope', scope);
+            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        }
+
+        // 1. Reset and Abort
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+
         setIsLoading(true);
         setShowResults(false);
-        setSearchResult(null);
+        setJournals([]);
+        setAnswer('');
+        setCurrentSearchKey(searchKey);
         setLoadingStatus(null);
 
         try {
@@ -64,6 +119,7 @@ function SearchContent() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query, minYear, maxYear, scope }),
+                signal
             });
 
             if (!response.ok) {
@@ -83,6 +139,9 @@ function SearchContent() {
             let accumulatedAnswer = '';
             let receivedJournals: any[] = [];
             let buffer = '';
+
+            // Start showing results section early for better UX
+            setShowResults(true);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -104,6 +163,14 @@ function SearchContent() {
                         try {
                             const status = JSON.parse(content);
                             setLoadingStatus(status);
+
+                            // Hide global loading and show results area as soon as we move past retrieval
+                            if (['reranking', 'summarizing', 'answer_start'].includes(status.type)) {
+                                setIsLoading(false);
+                                if (!showResults) {
+                                    setShowResults(true);
+                                }
+                            }
                         } catch (e) {
                             console.error('Failed to parse status:', e);
                         }
@@ -111,20 +178,28 @@ function SearchContent() {
                         try {
                             const data = JSON.parse(content);
                             receivedJournals = data.journals;
-                            setSearchResult({ journals: data.journals, answer: '' });
-                            setIsLoading(false);
-                            setShowResults(true);
+                            setJournals(data.journals);
 
-                            setTimeout(() => {
-                                resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            }, 100);
+                            setIsLoading(false);
+                            if (!showResults) {
+                                setShowResults(true);
+                                setTimeout(() => {
+                                    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 100);
+                            }
                         } catch (e) {
                             console.error('Failed to parse journals:', e);
                         }
                     } else if (prefix === 'T:') {
                         try {
-                            accumulatedAnswer += JSON.parse(content);
-                            setSearchResult(prev => prev ? ({ ...prev, answer: accumulatedAnswer }) : null);
+                            const chunk = JSON.parse(content);
+                            accumulatedAnswer += chunk;
+                            setAnswer(accumulatedAnswer);
+
+                            setIsLoading(false);
+                            if (!showResults) {
+                                setShowResults(true);
+                            }
                         } catch (e) {
                             console.error('Failed to parse text chunk:', e);
                         }
@@ -132,7 +207,10 @@ function SearchContent() {
                 }
             }
 
-            // Save to Cache & History
+            setIsLoading(false);
+            setShowResults(true);
+
+            // Save to Cache
             if (receivedJournals.length > 0) {
                 // 1. Cache
                 const cacheKey = `search_cache_${query}_${minYear}_${maxYear}_${scope}`;
@@ -140,28 +218,6 @@ function SearchContent() {
                     journals: receivedJournals,
                     answer: accumulatedAnswer
                 }));
-
-                // 2. History (Fire and Forget)
-                const conversation = [
-                    { role: 'user', content: query, filters: { minYear, maxYear, scope } },
-                    { role: 'assistant', content: accumulatedAnswer, journals: receivedJournals }
-                ];
-
-                supabase.auth.getSession().then(({ data: { session } }) => {
-                    if (session) {
-                        fetch('/api/history', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${session.access_token}`
-                            },
-                            body: JSON.stringify({
-                                query,
-                                payload: conversation
-                            })
-                        }).catch(console.error);
-                    }
-                });
             }
         } catch (error) {
             console.error('Search error:', error);
@@ -242,26 +298,35 @@ function SearchContent() {
 
                             <div ref={resultsRef} className="mt-16 scroll-mt-32 min-h-[400px]">
                                 <AnimatePresence mode="wait">
-                                    {showResults && searchResult ? (
+                                    {showResults && journals.length >= 0 ? (
                                         <motion.div
-                                            key="results"
+                                            key={currentSearchKey || "results"}
                                             initial={{ opacity: 0, y: 20 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ duration: 0.5, ease: "easeOut" }}
                                             className="mx-auto w-full"
                                         >
                                             <AnswerSection
-                                                answer={searchResult.answer}
-                                                journals={searchResult.journals}
+                                                answer={answer}
+                                                journals={journals}
                                                 onOpenJournalDetail={(j, tab) => {
                                                     setDetailJournal(j);
                                                     setDetailTab(tab || 'abstract');
                                                 }}
                                             />
 
-                                            <div className="mb-8 overflow-x-hidden">
+                                            {/* Results Meta Summary */}
+                                            <ResultsSummary
+                                                role={userRole}
+                                                stepCount={3}
+                                                sourceCount={journals.length}
+                                                className="mb-6"
+                                            />
+
+                                            <div className="mb-8 flex flex-col gap-4">
+                                                {/* Visible Journals (First 10) */}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {searchResult.journals.map((journal, index) => (
+                                                    {journals.slice(0, 10).map((journal, index) => (
                                                         <JournalCard
                                                             key={index}
                                                             {...journal}
@@ -274,6 +339,71 @@ function SearchContent() {
                                                         />
                                                     ))}
                                                 </div>
+
+                                                {/* Hidden / Blurred Journals */}
+                                                {journals.length > 10 && (
+                                                    <div className="relative">
+                                                        <div className={cn(
+                                                            "grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300",
+                                                            (userRole === "free" || userRole === "guest") && "blur-[10px] pointer-events-none select-none opacity-30"
+                                                        )}>
+                                                            {journals.slice(10).map((journal, index) => (
+                                                                <JournalCard
+                                                                    key={index + 10}
+                                                                    {...journal}
+                                                                    index={index + 10}
+                                                                    isActive={detailJournal?.title === journal.title}
+                                                                    onOpenJournalDetail={(j) => {
+                                                                        if (userRole === "premium") {
+                                                                            setDetailJournal(j);
+                                                                            setDetailTab('abstract');
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            ))}
+                                                        </div>
+
+                                                        {(userRole === "free" || userRole === "guest") && (
+                                                            <div className="absolute inset-x-0 top-0 z-20 flex justify-center pt-28 px-6">
+                                                                <div className="max-w-4xl text-center">
+
+                                                                    {/* Badge */}
+                                                                    <div className="mb-6 inline-flex items-center gap-3 rounded-full bg-white/90 px-4 py-2 text-sm text-zinc-900 shadow-sm backdrop-blur">
+                                                                        <span className="font-medium">
+                                                                            {journals.length - 10} hasil pencarian tidak ditampilkan
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {/* Headline */}
+                                                                    <h1 className="font-serifPremium text-1xl sm:text-1xl md:text-4xl leading-tight tracking-tight text-black">
+                                                                        Kamu cuma bisa lihat{" "}
+                                                                        <span className="italic text-indigo-500">10%</span>{" "}
+                                                                        dari jurnal yang relevan.
+                                                                        <br />
+                                                                    </h1>
+
+                                                                    {/* Subheadline */}
+                                                                    <p className="mt-4 text-base sm:text-lg text-zinc-600 max-w-2xl mx-auto">
+                                                                        Nggak perlu ribet cari jurnal ke banyak website.
+                                                                    </p>
+
+                                                                    {/* CTA */}
+                                                                    <div className="mt-4">
+                                                                        <Link
+                                                                            href="/pricing"
+                                                                            className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3 text-sm font-medium text-zinc-900 shadow-lg transition hover:bg-zinc-100"
+                                                                        >
+                                                                            Tampilkan Semua
+                                                                        </Link>
+                                                                    </div>
+
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+
+                                                    </div>
+                                                )}
                                             </div>
                                         </motion.div>
                                     ) : null}

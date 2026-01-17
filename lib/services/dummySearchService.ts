@@ -28,14 +28,22 @@ export async function* searchJournals(
 
     // 2. Simulate Retrieval
     yield {
-        type: 'retrieval',
-        sources: [
-            { name: 'OpenAlex', count: 42 },
-            { name: 'Semantic Scholar', count: 28 },
-            { name: 'Core.ac.uk', count: 15 }
-        ]
+        type: 'retrieval_update',
+        source: 'OpenAlex',
+        count: 42
     };
-    await sleep(2500);
+    await sleep(500);
+    yield {
+        type: 'retrieval_update',
+        source: 'Semantic Scholar',
+        count: 28
+    };
+    await sleep(500);
+    yield {
+        type: 'retrieval_complete',
+        total: 70
+    };
+    await sleep(1500);
 
     // 3. Simulate Reranking Start
     yield { type: 'reranking' };

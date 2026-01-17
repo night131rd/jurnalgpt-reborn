@@ -3,9 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Twitter, Linkedin, Instagram, Mail } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export default function Footer() {
+    const pathname = usePathname();
     const currentYear = 2026;
+
+    if (pathname === "/search") return null;
 
     return (
         <footer className="bg-zinc-50 border-t border-zinc-200 pt-16 pb-8">
@@ -45,11 +49,6 @@ export default function Footer() {
                             <li>
                                 <Link href="/pricing" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">
                                     Harga & Paket
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/history" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">
-                                    Riwayat Pencarian
                                 </Link>
                             </li>
                         </ul>
